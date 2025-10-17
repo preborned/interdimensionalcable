@@ -1,0 +1,62 @@
+<!-- 
+=================================================================================
+ iCable Development Build - Configuration
+=================================================================================
+ This file contains the bare configuration and customization options for the
+ iCable.
+=================================================================================
+-->
+<config>
+    <!-- API & Data Sources -->
+    <settings>
+        <!-- URL to your XMLTV file. This can be a local path or a remote URL. -->
+        <xmltvUrl>http://localhost:8080/xmltv.xml</xmltvUrl>
+        
+        <!-- Your API key from OpenWeatherMap. (Optional) -->
+        <openWeatherApiKey>YOUR_API_KEY_HERE</openWeatherApiKey>
+    </settings>
+
+    <!-- Player Settings -->
+    <player>
+        <!-- The base URL for your TV player. The guide will append `#{channelId}` to this URL. (Integrated player in future update, I recommend TVS 99 for now.) -->
+        <url>http://localhost:8080/</url>
+    </player>
+    
+    <!-- Feature Toggles & Appearance -->
+    <features>
+        <!-- Set to "true" to display the logo, "false" to hide it. -->
+        <enableLogo>true</enableLogo>
+        <!-- URL for your logo. Can be local path or a remote URL. Leave empty for the default placeholder. -->
+        <logoUrl></logoUrl> 
+
+        <!-- Set to "true" to display the current weather and forecast widget, "false" to hide them. -->
+        <enableWeather>true</enableWeather>
+    </features>
+
+    <!-- Color Theming for the entire application -->
+    <colors>
+        <primaryBgStart>#1d2b4b</primaryBgStart>
+        <primaryBgEnd>#0c1428</primaryBgEnd>
+        <secondaryBg>#2a3a5e</secondaryBg>
+        <tertiaryBg>#4d648d</tertiaryBg>
+        <accent>#00aaff</accent>
+        <text>#f0f0f0</text>
+        <liveBg>#78909c</liveBg>
+        <pastBg>#263238</pastBg>
+    </colors>
+
+    <!-- Add any custom channels that are not in your XMLTV file. -->
+    <customChannels>
+        <channel id="1" number="1" name="BBC" logo="https://placehold.co/100x100/ffeb3b/000000?text=BBC">
+            <programTitle>BBC - Not What You Think</programTitle>
+            <episodeNum>S03E09</episodeNum>
+            <description>This isn't BBC News, it's not exactly the BBC you're thinking of.</description>
+        </channel>
+        <channel id="2" number="2" name="TOON" logo="https://placehold.co/100x100/e0e0e0/000000?text=Cartoons">
+            <programTitle>Tom And Jerry</programTitle>
+            <episodeNum>S56E12</episodeNum>
+            <description>Tom the Cat and Jerry the Mouse are back at it again. What else is new.</description>
+        </channel>
+    </customChannels>
+</config>
+
