@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>icable-development</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="app-container">
+        <div class="guide-wrapper">
+            <header id="guide-header">
+                <div class="header-left">
+                     <div id="guide-logo-placeholder"></div>
+                </div>
+                <div class="header-right">
+                    <span id="guide-weather">--°F</span>
+                    <span id="guide-time">--:-- --</span>
+                </div>
+            </header>
+    
+            <div id="current-program-details">
+                <div class="details-poster-container"></div>
+                <div class="details-text-content">
+                    <h3></h3>
+                    <div class="details-channel-info"></div>
+                    <div class="description-container">
+                        <p></p>
+                    </div>
+                     <div class="details-timeslot"></div>
+                </div>
+                <div id="widget-slideshow-container">
+                    <div id="hourly-forecast-widget" class="widget-slide">
+                        <div class="widget-title">HOURLY FORECAST</div>
+                        <div class="forecast-items"></div>
+                    </div>
+                    <div id="recommendation-widget" class="widget-slide">
+                        <div class="widget-title">COMING UP NEXT</div>
+                        <div class="rec-content"></div>
+                    </div>
+                </div>
+            </div>
+    
+            <div id="guide-body">
+                <div id="guide-corner">Guide</div>
+                <div id="time-bar"><div id="time-bar-content"></div></div>
+                <div id="channel-list"></div>
+                <div id="program-grid-container">
+                    <div id="program-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="menu-overlay"></div>
+    <nav id="side-menu">
+        <h2>Menu</h2>
+        <ul>
+            <li><a href="ondemand.html" class="menu-button">On-Demand</a></li>
+        </ul>
+    </nav>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
+
