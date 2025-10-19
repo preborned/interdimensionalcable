@@ -45,10 +45,12 @@ async function loadConfig() {
 
     CONFIG.xmltvUrl = xmlDoc.querySelector('xmltvUrl').textContent;
     CONFIG.openWeatherApiKey = xmlDoc.querySelector('openWeatherApiKey').textContent;
+    CONFIG.tmdbApiKey = xmlDoc.querySelector('tmdbApiKey').textContent;
     CONFIG.playerUrl = xmlDoc.querySelector('player url').textContent;
     CONFIG.enableLogo = xmlDoc.querySelector('enableLogo').textContent === 'true';
     CONFIG.logoUrl = xmlDoc.querySelector('logoUrl').textContent;
     CONFIG.enableWeather = xmlDoc.querySelector('enableWeather').textContent === 'true';
+    CONFIG.messages = Array.from(xmlDoc.querySelectorAll('messages message')).map(m => m.textContent);
 
     CONFIG.colors = {};
     const colorNodes = xmlDoc.querySelectorAll('colors *');
@@ -116,10 +118,11 @@ function initializeGuide(xmlDoc) {
     selectInitialProgram();
     setupDynamicUpdates();
     startWidgetSlideshow();
+    startMessageBox();
 }
 
 function setupDynamicUpdates() {
-    updateTime();
+    updateTime(); 
     setInterval(updateTime, 1000);
 
     if (CONFIG.enableWeather) {
@@ -136,14 +139,17 @@ function setupDynamicUpdates() {
 function syncScrollbars() {
     const gridContainer = document.getElementById('program-grid-container');
     const channelList = document.getElementById('channel-list');
-    const timeBar = document.getElementById('time-bar');
+    const timeBarContent = document.getElementById('time-bar-content');
     let isSyncing = false;
 
     gridContainer.addEventListener('scroll', () => {
         if (!isSyncing) {
             isSyncing = true;
             channelList.scrollTop = gridContainer.scrollTop;
-            timeBar.scrollLeft = gridContainer.scrollLeft;
+            timeBarContent.style.transform = `translateX(-${gridContainer.scrollLeft}px)`;
+
+            updateVisibleTitles(gridContainer.scrollLeft);
+
             requestAnimationFrame(() => { isSyncing = false; });
         }
     });
@@ -219,21 +225,23 @@ function renderGuide() {
     channelList.innerHTML = '';
     programGrid.innerHTML = '';
 
-    const totalMinutes = CONFIG.totalGuideHours * 60;
-    const viewMinutes = CONFIG.guideViewHours * 60;
-    programGrid.style.width = `${(totalMinutes / viewMinutes) * 100}%`;
+    const containerWidth = gridContainer.clientWidth;
+    const pxPerMinute = containerWidth / (CONFIG.guideViewHours * 60);
+    const totalGridWidthPx = CONFIG.totalGuideHours * 60 * pxPerMinute;
+
+    programGrid.style.width = `${totalGridWidthPx}px`;
     timeBarContent.style.width = programGrid.style.width;
 
     for (let i = 0; i < CONFIG.totalGuideHours * 2; i++) {
         const markerTime = new Date(guideStartTime.getTime() + i * 30 * 60 * 1000);
         const timeMarker = document.createElement('div');
         timeMarker.className = 'time-marker';
-        timeMarker.style.width = `${(30 / totalMinutes) * 100 * (totalMinutes / viewMinutes)}%`;
+        timeMarker.style.width = `${30 * pxPerMinute}px`;
         timeMarker.textContent = markerTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         timeBarContent.appendChild(timeMarker);
     }
 
-    programGrid.style.height = `${guideData.channels.length * 85}px`;
+    programGrid.style.height = `${guideData.channels.length * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row-height'))}px`;
 
     programsByChannel = guideData.channels.map(channel =>
         guideData.programmes.filter(p => p.channel === channel.id).sort((a, b) => a.start - b.start)
@@ -254,20 +262,13 @@ function renderGuide() {
             programBlock.className = 'program-block';
             programBlock.dataset.cIndex = cIndex;
             programBlock.dataset.pIndex = pIndex;
-            programBlock.style.top = `${cIndex * 85}px`;
-            programBlock.style.left = `${(startOffsetMinutes / totalMinutes) * 100}%`;
-            programBlock.style.width = `${(durationMinutes / totalMinutes) * 100}%`;
-
-            const programContent = document.createElement('div');
-            programContent.className = 'program-content';
-            programContent.innerHTML = `<div class="program-title">${program.title}</div><div class="program-time">${program.start.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div>`;
-
-            if (startOffsetMinutes < 0) {
-                const cutoffPercent = (Math.abs(startOffsetMinutes) / durationMinutes) * 100;
-                programContent.style.paddingLeft = `calc(${cutoffPercent}% + 8px)`;
-            }
-            programBlock.appendChild(programContent);
-
+            const rowHeightPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) * parseFloat(getComputedStyle(document.documentElement).fontSize);
+            programBlock.style.top = `${cIndex * rowHeightPx}px`;
+            programBlock.style.left = `${startOffsetMinutes * pxPerMinute}px`;
+            programBlock.style.width = `${durationMinutes * pxPerMinute}px`;
+            
+            programBlock.innerHTML = `<div class="program-content"><div class="program-title">${program.title}</div><div class="program-time">${program.start.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div></div>`;
+            
             if (program.start <= now && program.stop > now) programBlock.classList.add('live');
             else if (program.stop <= now) programBlock.classList.add('past');
 
@@ -279,16 +280,34 @@ function renderGuide() {
         });
     });
 
-    const nowOffset = (new Date() - guideStartTime) / 60000;
-    const scrollPercent = (nowOffset / totalMinutes) - ( (CONFIG.guideViewHours / 2) / CONFIG.totalGuideHours );
-    gridContainer.scrollLeft = gridContainer.scrollWidth * scrollPercent;
+    const nowOffsetMinutes = (new Date() - guideStartTime) / 60000;
+    const viewCenterMinutes = (CONFIG.guideViewHours * 60) / 2;
+    const initialScrollPx = (nowOffsetMinutes - viewCenterMinutes) * pxPerMinute;
+    gridContainer.scrollLeft = initialScrollPx;
+    updateVisibleTitles(initialScrollPx);
 }
+
+function updateVisibleTitles(scrollLeft) {
+    const programBlocks = document.querySelectorAll('.program-block');
+    programBlocks.forEach(block => {
+        const title = block.querySelector('.program-title');
+        const blockLeft = block.offsetLeft;
+
+        if (blockLeft < scrollLeft) {
+            const offset = scrollLeft - blockLeft;
+            title.style.transform = `translateX(${offset}px)`;
+        } else {
+            title.style.transform = 'translateX(0px)';
+        }
+    });
+}
+
 
 function displayInitialMessage(title = 'Loading Guide...', desc = 'Fetching program data. Please wait.') {
     displayProgramDetails({ title, desc, episodeNum: '', start: new Date(), stop: new Date() }, { name: 'System', number: '00', logo: '' });
 }
 
-function displayProgramDetails(program, channel) {
+async function displayProgramDetails(program, channel) {
     const detailsPanel = document.getElementById('current-program-details');
     const posterContainer = detailsPanel.querySelector('.details-poster-container');
     const titleEl = detailsPanel.querySelector('h3');
@@ -300,7 +319,9 @@ function displayProgramDetails(program, channel) {
     const stopTimeStr = program.stop.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
     const episodeNumHTML = program.episodeNum ? `<span class="episode-num">${program.episodeNum}</span>` : '';
-    posterContainer.innerHTML = program.title ? `<img src="https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(program.title)}" alt="Poster">` : '';
+    
+    const posterUrl = await getPosterUrl(program.title);
+    posterContainer.innerHTML = program.title ? `<img src="${posterUrl}" alt="Poster">` : '';
 
     titleEl.innerHTML = `${program.title || ''}${episodeNumHTML}`;
     channelInfoEl.innerHTML = channel.name ? `<img src="${channel.logo}" alt=""><span>${channel.name} ${channel.number}</span>` : '';
@@ -420,8 +441,27 @@ function updateTime() {
     if (timeEl) timeEl.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+async function getPosterUrl(title) {
+    if (!title || CONFIG.tmdbApiKey === 'YOUR_API_KEY_HERE') {
+        return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title || 'No Title')}`;
+    }
+    try {
+        const url = `https://api.themoviedb.org/3/search/multi?api_key=${CONFIG.tmdbApiKey}&query=${encodeURIComponent(title)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch from TMDb");
+        const data = await res.json();
+        const firstResult = data.results?.[0];
+        if (firstResult?.poster_path) {
+            return `https://image.tmdb.org/t/p/w400${firstResult.poster_path}`;
+        }
+    } catch (err) {
+        console.error("TMDb fetch error:", err.message);
+    }
+    return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title)}`;
+}
+
 async function fetchWeather() {
-    if (CONFIG.openWeatherApiKey === 'YOUR_API_KEY_HERE' || !userCoords) return;
+    if (!CONFIG.enableWeather || CONFIG.openWeatherApiKey === 'YOUR_API_KEY_HERE' || !userCoords) return;
     const { latitude, longitude } = userCoords;
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${CONFIG.openWeatherApiKey}&units=imperial`;
     try {
@@ -437,7 +477,7 @@ async function fetchWeather() {
 }
 
 async function fetchHourlyForecast() {
-    if (CONFIG.openWeatherApiKey === 'YOUR_API_KEY_HERE' || !userCoords) return;
+    if (!CONFIG.enableWeather || CONFIG.openWeatherApiKey === 'YOUR_API_KEY_HERE' || !userCoords) return;
     const { latitude, longitude } = userCoords;
     const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${CONFIG.openWeatherApiKey}&units=imperial&cnt=4`;
     try {
@@ -500,7 +540,7 @@ function startWidgetSlideshow() {
         });
     }
 
-    buildRecommendationWidget();
+    buildRecommendationWidget(); 
 
     setInterval(() => {
         currentSlide = (currentSlide + 1) % slides.length;
@@ -513,3 +553,43 @@ function startWidgetSlideshow() {
     showSlide(0);
 }
 
+function startMessageBox() {
+    const messageTextEl = document.getElementById('message-text');
+    if (!messageTextEl) return;
+
+    let allMessages = [...CONFIG.messages];
+
+    const now = new Date();
+    const upcoming = [];
+    if (programsByChannel) {
+        programsByChannel.forEach((channelProgs, cIndex) => {
+            const nextProg = channelProgs.find(p => p.start > now);
+            if(nextProg) upcoming.push({ program: nextProg, channel: guideData.channels[cIndex] });
+        });
+    }
+
+    for (let i = 0; i < Math.min(3, upcoming.length); i++) {
+        const randomRec = upcoming.splice(Math.floor(Math.random() * upcoming.length), 1)[0];
+            if (randomRec) {
+                const timeStr = randomRec.program.start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                allMessages.push(`Coming Up at ${timeStr}: "${randomRec.program.title}" on ${randomRec.channel.name}`);
+            }
+    }
+
+    if (allMessages.length === 0) return;
+
+    for (let i = allMessages.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allMessages[i], allMessages[j]] = [allMessages[j], allMessages[i]];
+    }
+
+    let currentMessageIndex = 0;
+    
+    function displayNextMessage() {
+        messageTextEl.textContent = allMessages[currentMessageIndex];
+        currentMessageIndex = (currentMessageIndex + 1) % allMessages.length;
+    }
+
+    setInterval(displayNextMessage, 15000);
+    displayNextMessage();
+}
