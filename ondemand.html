@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
     <style>
         .ondemand-container {
-            padding: 40px;
+            padding: 2.5rem;
             text-align: center;
         }
         .ondemand-container h1 {
@@ -19,12 +19,12 @@
         }
         .back-link {
             display: inline-block;
-            margin-top: 40px;
-            padding: 10px 20px;
+            margin-top: 2.5rem;
+            padding: 0.6rem 1.2rem;
             background-color: var(--secondary-bg);
             color: var(--text-color);
             text-decoration: none;
-            border-radius: 8px;
+            border-radius: 0.5rem;
         }
     </style>
 </head>
@@ -34,5 +34,28 @@
         <p>This page is under construction.</p>
         <a href="index.html" class="back-link">Back to Guide</a>
     </div>
+
+    <script>
+        async function applyTheme() {
+            try {
+                const response = await fetch('config.xml');
+                if (!response.ok) return;
+                const xmlString = await response.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+                
+                const colorNodes = xmlDoc.querySelectorAll('colors *');
+                colorNodes.forEach(node => {
+                    const key = `--${node.tagName.toLowerCase()}`;
+                    const value = node.textContent;
+                    document.documentElement.style.setProperty(key.replace(/([a-z])([A-Z])/g, '$1-$2'), value);
+                });
+            } catch (err) {
+                console.error("Could not load theme:", err);
+            }
+        }
+        applyTheme();
+    </script>
 </body>
 </html>
+
