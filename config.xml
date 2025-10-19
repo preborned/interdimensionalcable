@@ -1,19 +1,22 @@
 <!-- 
 =================================================================================
- iCable Development Build - Configuration
+ Interdimensional Cable - Configuration File
 =================================================================================
- This file contains the bare configuration and customization options for the
- iCable.
+ This file contains all the user-configurable settings for the guide.
+ Simply edit the values here to customize your experience.
 =================================================================================
 -->
 <config>
     <!-- API & Data Sources -->
     <settings>
-        <!-- URL to your XMLTV file. This can be a local path or a remote URL. -->
-        <xmltvUrl>http://localhost:8080/xmltv.xml</xmltvUrl>
+        <!-- URL to your XMLTV file. This can be a local path or a remote URL. (Optional) -->
+        <xmltvUrl>http://localhost:8000/xmltv.xml</xmltvUrl>
         
         <!-- Your API key from OpenWeatherMap. (Optional) -->
-        <openWeatherApiKey>YOUR_API_KEY_HERE</openWeatherApiKey>
+        <openWeatherApiKey>YOUR_API_KEY</openWeatherApiKey>
+        
+        <!-- API key from The Movie Database (TMDb) for posters. (Optional) (Free key at www.themoviedb.org) -->
+        <tmdbApiKey>YOUR_API_KEY</tmdbApiKey>
     </settings>
 
     <!-- Player Settings -->
@@ -24,16 +27,22 @@
     
     <!-- Feature Toggles & Appearance -->
     <features>
-        <!-- Set to "true" to display the logo, "false" to hide it. -->
+        <!-- Set to "true" to display the logo or "false" to hide it. -->
         <enableLogo>true</enableLogo>
-        <!-- URL for your logo. Can be local path or a remote URL. Leave empty for the default placeholder. -->
+        <!-- URL for your logo. Leave empty for the default placeholder. -->
         <logoUrl></logoUrl> 
 
         <!-- Set to "true" to display the current weather and forecast widget, "false" to hide them. -->
         <enableWeather>true</enableWeather>
     </features>
 
-    <!-- Color Theming for the entire application -->
+    <!-- Custom messages for the bottom message box. Add as many as you like. (Minimum of one message) -->
+    <messages>
+        <message>Welcome to iCable!</message>
+        <message>Press 'M' to open the main menu.</message>
+    </messages>
+
+    <!-- Color Customization -->
     <colors>
         <primaryBgStart>#1d2b4b</primaryBgStart>
         <primaryBgEnd>#0c1428</primaryBgEnd>
@@ -45,7 +54,7 @@
         <pastBg>#263238</pastBg>
     </colors>
 
-    <!-- Add any custom channels that are not in your XMLTV file. -->
+    <!-- Custom Channels (Optional) -->
     <customChannels>
         <channel id="1" number="1" name="BBC" logo="https://placehold.co/100x100/ffeb3b/000000?text=BBC">
             <programTitle>BBC - Not What You Think</programTitle>
@@ -59,4 +68,3 @@
         </channel>
     </customChannels>
 </config>
-
