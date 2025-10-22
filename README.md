@@ -7,9 +7,9 @@ iCable (or Interdimensional Cable), brings you a simple and convenient solution 
 (Currently only tested on Chromium 141.0.7390)
 
 ## Description
-The iGuide is an interactive EPG that can read from any xmltv.xml file, and/or you can add your own custom "always live" channels. You can also add your own logo, connect an OpenWeather API to get an hourly forecast as well as the current temperature, connect a TMDb API to get posters for your content, customize all colors to your liking, add custom messages to the footer of the guide, and access even more features from the side menu by pressing M. All easily customizable from the config.xml file.
+The iGuide is an interactive EPG that can read from any xmltv.xml file or JSON guide file, and/or you can add your own custom "always live" channels. You can also add your own logo, connect an OpenWeather API to get an hourly forecast as well as the current temperature, connect a TMDb API to get posters for your content, customize all colors to your liking, add custom messages to the footer of the guide, and access even more features from the side menu by pressing M. All easily customizable from the config.xml file.
 
-iCable also has an integrated media player that supports both HLS and YouTube streams. The iGuide will automatically set the stream links with a provided M3U playlist file, but you can also add custom stream mappings for each channel within the config file.
+iCable also has an integrated media player that supports both HLS and YouTube streams. The iGuide will also automatically set the stream links with a provided M3U playlist file, but you can also add custom stream mappings for each channel within the config file.
 
 The On-Demand menu is still under construction and planning.
 
