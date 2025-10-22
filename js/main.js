@@ -1,10 +1,30 @@
+/*
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 let CONFIG = {};
-let guideData = null;
+let guideData = { channels: [], programmes: [] };
 let programsByChannel = [];
 let selectedChannelIndex = 0;
 let selectedProgramIndex = 0;
 let userCoords = null;
 let guideStartTime;
+let hlsInstance = null;
+let currentStreamInfo = {};
+let errorSound = null;
 
 const sampleXmlTvData = `
 <tv>
@@ -16,15 +36,25 @@ const sampleXmlTvData = `
 `;
 
 document.addEventListener('DOMContentLoaded', async () => {
+    errorSound = document.getElementById('error-sound');
     try {
         await loadConfig();
         applyConfigToUI();
         displayInitialMessage();
 
-        const xmlString = await fetchGuideData();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlString, "application/xml");
-        initializeGuide(xmlDoc);
+        const { data, format } = await fetchGuideData();
+        const m3uStreams = await fetchM3UData();
+        
+        let parsedData;
+        if (format === 'xml') {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data, "application/xml");
+            parsedData = parseXmlGuide(xmlDoc);
+        } else { 
+            parsedData = parseJsonGuide(JSON.parse(data));
+        }
+
+        initializeGuide(parsedData, m3uStreams);
 
     } catch (error) {
         console.error("Initialization failed:", error);
@@ -33,6 +63,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.addEventListener('keydown', handleKeyPress);
     syncScrollbars();
+    setupPlayerControls();
+
+    const resumeChannelId = sessionStorage.getItem('returnFromPlayerChannelId');
+    if (resumeChannelId && guideData.channels.length > 0) { 
+        const channelToResume = guideData.channels.find(ch => ch.id === resumeChannelId);
+        if (channelToResume && channelToResume.stream) {
+            loadStream(channelToResume);
+        }
+        sessionStorage.removeItem('returnFromPlayerChannelId');
+    }
 });
 
 
@@ -44,13 +84,21 @@ async function loadConfig() {
     const xmlDoc = parser.parseFromString(xmlString, "application/xml");
 
     CONFIG.xmltvUrl = xmlDoc.querySelector('xmltvUrl').textContent;
+    CONFIG.jsonUrl = xmlDoc.querySelector('jsonUrl').textContent;
+    CONFIG.m3uUrl = xmlDoc.querySelector('m3uUrl').textContent;
     CONFIG.openWeatherApiKey = xmlDoc.querySelector('openWeatherApiKey').textContent;
     CONFIG.tmdbApiKey = xmlDoc.querySelector('tmdbApiKey').textContent;
     CONFIG.playerUrl = xmlDoc.querySelector('player url').textContent;
+    CONFIG.hotlinkUrl = xmlDoc.querySelector('player hotlinkUrl').textContent;
     CONFIG.enableLogo = xmlDoc.querySelector('enableLogo').textContent === 'true';
     CONFIG.logoUrl = xmlDoc.querySelector('logoUrl').textContent;
     CONFIG.enableWeather = xmlDoc.querySelector('enableWeather').textContent === 'true';
     CONFIG.messages = Array.from(xmlDoc.querySelectorAll('messages message')).map(m => m.textContent);
+    CONFIG.streamMappings = Array.from(xmlDoc.querySelectorAll('streamMappings stream')).map(s => ({
+        channelId: s.getAttribute('channelId'),
+        type: s.getAttribute('type'),
+        url: s.textContent.trim()
+    }));
 
     CONFIG.colors = {};
     const colorNodes = xmlDoc.querySelectorAll('colors *');
@@ -63,6 +111,10 @@ async function loadConfig() {
         number: ch.getAttribute('number'),
         name: ch.getAttribute('name'),
         logo: ch.getAttribute('logo'),
+        stream: {
+            type: ch.querySelector('stream')?.getAttribute('type'),
+            url: ch.querySelector('stream')?.textContent.trim()
+        },
         programTitle: ch.querySelector('programTitle')?.textContent || '24/7 Broadcast',
         episodeNum: ch.querySelector('episodeNum')?.textContent || '',
         description: ch.querySelector('description')?.textContent || ''
@@ -92,25 +144,73 @@ function applyConfigToUI() {
 
     if (!CONFIG.enableWeather) {
         if (weatherEl) weatherEl.style.display = 'none';
-        if (forecastWidget) forecastWidget.style.display = 'none';
+        const menuForecastWidgetContainer = document.querySelector('#side-menu #hourly-forecast-widget');
+        if (menuForecastWidgetContainer) menuForecastWidgetContainer.style.display = 'none';
     }
 }
 
 async function fetchGuideData() {
+    if (CONFIG.xmltvUrl) {
+        try {
+            const response = await fetch(CONFIG.xmltvUrl);
+            if (!response.ok) throw new Error('XMLTV fetch failed, trying JSON.');
+            const data = await response.text();
+            return { data, format: 'xml' };
+        } catch (error) { console.warn(error.message); }
+    }
+
+    if (CONFIG.jsonUrl) {
+        try {
+            const response = await fetch(CONFIG.jsonUrl);
+            if (!response.ok) throw new Error('JSON fetch failed, using sample data.');
+            const data = await response.text();
+            return { data, format: 'json' };
+        } catch (error) { console.warn(error.message); }
+    }
+    
+    console.error('All data sources failed. Loading sample XML data.');
+    displayInitialMessage('Error', 'Could not fetch guide data. Loading sample data instead.');
+    return { data: sampleXmlTvData, format: 'xml' };
+}
+
+async function fetchM3UData() {
+    if (!CONFIG.m3uUrl) return {};
+
     try {
-        const response = await fetch(CONFIG.xmltvUrl);
-        if (!response.ok) throw new Error('Network response was not ok');
-        return await response.text();
+        const response = await fetch(CONFIG.m3uUrl);
+        if (!response.ok) throw new Error('M3U fetch failed.');
+        const m3uText = await response.text();
+        return parseM3U(m3uText);
     } catch (error) {
-        console.error('Failed to fetch live guide data:', error);
-        displayInitialMessage('Error', 'Could not fetch live data. Loading sample data instead.');
-        return sampleXmlTvData;
+        console.error("Failed to fetch or parse M3U:", error.message);
+        return {};
     }
 }
 
+function parseM3U(m3uText) {
+    const lines = m3uText.split('\n');
+    const streams = {};
+    let currentTvgId = null;
 
-function initializeGuide(xmlDoc) {
-    guideData = parseAndMergeData(xmlDoc);
+    for (const line of lines) {
+        if (line.startsWith('#EXTINF:')) {
+            const tvgIdMatch = line.match(/tvg-id="([^"]+)"/);
+            currentTvgId = tvgIdMatch ? tvgIdMatch[1] : null;
+        } else if (line.trim() && !line.startsWith('#') && currentTvgId) {
+            const url = line.trim();
+            const type = url.includes('.m3u8') ? 'hls' : (url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' : 'unknown');
+            if (type !== 'unknown') {
+                streams[currentTvgId] = { type, url };
+            }
+            currentTvgId = null;
+        }
+    }
+    return streams;
+}
+
+
+function initializeGuide(parsedData, m3uStreams) {
+    guideData = mergeAndSortData(parsedData, m3uStreams);
     guideStartTime = new Date();
     guideStartTime.setHours(guideStartTime.getHours() - 3);
     guideStartTime.setMinutes(0, 0, 0);
@@ -147,9 +247,7 @@ function syncScrollbars() {
             isSyncing = true;
             channelList.scrollTop = gridContainer.scrollTop;
             timeBarContent.style.transform = `translateX(-${gridContainer.scrollLeft}px)`;
-
             updateVisibleTitles(gridContainer.scrollLeft);
-
             requestAnimationFrame(() => { isSyncing = false; });
         }
     });
@@ -162,8 +260,8 @@ function syncScrollbars() {
     });
 }
 
-function parseAndMergeData(xmlDoc) {
-    let channels = Array.from(xmlDoc.querySelectorAll('channel')).map(tag => {
+function parseXmlGuide(xmlDoc) {
+    const channels = Array.from(xmlDoc.querySelectorAll('channel')).map(tag => {
         const nameContent = tag.querySelector('display-name').textContent;
         const nameParts = nameContent.split(' ');
         const number = nameParts.shift();
@@ -171,7 +269,7 @@ function parseAndMergeData(xmlDoc) {
         return { id: tag.getAttribute('id'), name, number, logo: tag.querySelector('icon')?.getAttribute('src') || '' };
     });
 
-    let programmes = Array.from(xmlDoc.querySelectorAll('programme')).map(tag => {
+    const programmes = Array.from(xmlDoc.querySelectorAll('programme')).map(tag => {
         const epNumTag = tag.querySelector('episode-num');
         let episodeNum = '';
         if (epNumTag && epNumTag.getAttribute('system') === 'xmltv_ns') {
@@ -180,16 +278,25 @@ function parseAndMergeData(xmlDoc) {
             const e = parseInt(parts[1]) + 1;
             if (!isNaN(s) && !isNaN(e)) episodeNum = `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`;
         }
-        return {
-            channel: tag.getAttribute('channel'),
-            start: parseXMLTVTime(tag.getAttribute('start')),
-            stop: parseXMLTVTime(tag.getAttribute('stop')),
-            title: tag.querySelector('title').textContent,
-            desc: tag.querySelector('desc')?.textContent || 'No description available.',
-            episodeNum: episodeNum
-        };
+        return { channel: tag.getAttribute('channel'), start: parseXMLTVTime(tag.getAttribute('start')), stop: parseXMLTVTime(tag.getAttribute('stop')), title: tag.querySelector('title').textContent, desc: tag.querySelector('desc')?.textContent || 'No description available.', episodeNum };
     });
+    return { channels, programmes };
+}
 
+function parseJsonGuide(json) {
+    const channels = json.channels.map(ch => ({
+        id: ch.id,
+        name: ch.displayName.split(' ').slice(1).join(' '),
+        number: ch.displayName.split(' ')[0],
+        logo: ch.icon
+    }));
+
+    const programmes = json.programmes.map(p => ({ ...p, start: new Date(p.start), stop: new Date(p.stop) }));
+    return { channels, programmes };
+}
+
+
+function mergeAndSortData({ channels, programmes }, m3uStreams = {}) {
     channels = channels.concat(CONFIG.customChannels);
     channels.sort((a, b) => parseInt(a.number) - parseInt(b.number));
 
@@ -205,6 +312,21 @@ function parseAndMergeData(xmlDoc) {
             episodeNum: customChannel.episodeNum || ''
         });
     });
+    
+    channels.forEach(ch => {
+        const m3uStream = m3uStreams[ch.id];
+        const mapping = CONFIG.streamMappings.find(m => m.channelId === ch.id);
+        const custom = CONFIG.customChannels.find(c => c.id === ch.id);
+
+        if (m3uStream) {
+            ch.stream = m3uStream;
+        } else if (mapping) {
+            ch.stream = { type: mapping.type, url: mapping.url };
+        } else if (custom && custom.stream && custom.stream.url) {
+            ch.stream = custom.stream;
+        }
+    });
+
     return { channels, programmes };
 }
 
@@ -250,7 +372,12 @@ function renderGuide() {
     guideData.channels.forEach((channel, cIndex) => {
         const channelDiv = document.createElement('div');
         channelDiv.className = 'channel-info';
-        channelDiv.addEventListener('click', () => tuneToChannel(channel.id));
+        if (channel.stream && channel.stream.url) {
+            channelDiv.addEventListener('click', () => {
+                const liveProgramIndex = findLiveProgramIndex(cIndex);
+                handleProgramClick(cIndex, liveProgramIndex !== -1 ? liveProgramIndex : 0, true);
+            });
+        }
         channelDiv.innerHTML = `<img src="${channel.logo}" alt=""><div class="channel-text"><span class="channel-name">${channel.name}</span><span class="channel-number">| ${channel.number}</span></div>`;
         channelList.appendChild(channelDiv);
 
@@ -272,17 +399,14 @@ function renderGuide() {
             if (program.start <= now && program.stop > now) programBlock.classList.add('live');
             else if (program.stop <= now) programBlock.classList.add('past');
 
-            programBlock.addEventListener('click', () => {
-                selectProgram(cIndex, pIndex);
-                tuneToChannel(channel.id);
-            });
+            programBlock.addEventListener('click', () => handleProgramClick(cIndex, pIndex));
             programGrid.appendChild(programBlock);
         });
     });
 
     const nowOffsetMinutes = (new Date() - guideStartTime) / 60000;
     const viewCenterMinutes = (CONFIG.guideViewHours * 60) / 2;
-    const initialScrollPx = (nowOffsetMinutes - viewCenterMinutes) * pxPerMinute;
+    const initialScrollPx = Math.max(0, (nowOffsetMinutes - viewCenterMinutes) * pxPerMinute);
     gridContainer.scrollLeft = initialScrollPx;
     updateVisibleTitles(initialScrollPx);
 }
@@ -329,31 +453,171 @@ async function displayProgramDetails(program, channel) {
     timeslotEl.textContent = program.title ? `Timeslot: ${startTimeStr} - ${stopTimeStr}` : '';
 
     descriptionP.classList.remove('autoscroll');
+    descriptionP.style.animation = 'none';
+
     setTimeout(() => {
-        if (descriptionP.scrollHeight > descriptionP.clientHeight) {
+        const container = descriptionP.parentElement;
+        if (descriptionP.scrollHeight > container.clientHeight) {
+            const overflow = descriptionP.scrollHeight - container.clientHeight;
+            const duration = (overflow / 20);
+            descriptionP.style.animation = `scroll-text ${duration}s linear infinite alternate`;
             descriptionP.classList.add('autoscroll');
         }
     }, 50);
 }
 
-function tuneToChannel(channelId) {
-    if (!channelId) return;
-    window.open(`${CONFIG.playerUrl}#${channelId}`, '_blank');
+function setupPlayerControls() {
+    const video = document.getElementById('mini-player-video');
+    const wrapper = document.getElementById('player-ui-wrapper');
+    const progressFilled = document.getElementById('progress-bar-filled');
+    const fullscreenBtn = document.getElementById('fullscreen-button');
+
+    video.addEventListener('timeupdate', () => {
+        if(video.duration && !isNaN(video.duration)) {
+            progressFilled.style.width = `${(video.currentTime / video.duration) * 100}%`;
+        } else {
+             progressFilled.style.width = `0%`;
+        }
+    });
+
+    video.addEventListener('play', () => wrapper.classList.remove('paused'));
+    video.addEventListener('pause', () => wrapper.classList.add('paused'));
+
+    fullscreenBtn.addEventListener('click', () => {
+         if (!currentStreamInfo.channelId) return;
+         const program = programsByChannel[currentStreamInfo.cIndex]?.[currentStreamInfo.pIndex];
+         if (!program) return;
+         
+         const url = `player.html?src=${encodeURIComponent(currentStreamInfo.url)}&type=${currentStreamInfo.type}&title=${encodeURIComponent(program.title)}&desc=${encodeURIComponent(program.desc)}&channelId=${currentStreamInfo.channelId}`;
+         window.location.href = url;
+    });
+}
+
+function loadStream(channel) {
+    if (!channel || !channel.stream || !channel.stream.url) {
+        console.error("No stream URL found for channel", channel?.id);
+        stopMiniPlayer();
+        return;
+    }
+
+    currentStreamInfo = { 
+        channelId: channel.id, 
+        cIndex: guideData.channels.findIndex(ch => ch.id === channel.id),
+        pIndex: findLiveProgramIndex(guideData.channels.findIndex(ch => ch.id === channel.id)),
+        url: channel.stream.url, 
+        type: channel.stream.type 
+    };
+
+    const playerContainer = document.getElementById('mini-player-container');
+    const videoEl = document.getElementById('mini-player-video');
+    const youtubeContainer = document.getElementById('youtube-player-iframe');
+    
+    stopMiniPlayer();
+
+    playerContainer.classList.add('active');
+    let streamUrl = channel.stream.url;
+    let streamType = channel.stream.type;
+
+    if (streamType === 'youtube') {
+        const videoIdMatch = streamUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+        if (videoIdMatch && videoIdMatch[1]) {
+            streamUrl = videoIdMatch[1];
+        }
+    }
+
+
+    if (streamType === 'hls') {
+        videoEl.style.display = 'block';
+        youtubeContainer.style.display = 'none';
+        if (Hls.isSupported()) {
+            hlsInstance = new Hls();
+            hlsInstance.loadSource(streamUrl);
+            hlsInstance.attachMedia(videoEl);
+            hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play().catch(e => console.warn("Autoplay prevented:", e)));
+            hlsInstance.on(Hls.Events.ERROR, (event, data) => console.error('HLS Error:', data));
+        } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+            videoEl.src = streamUrl;
+            videoEl.addEventListener('loadedmetadata', () => videoEl.play().catch(e => console.warn("Autoplay prevented:", e)));
+        }
+    } else if (streamType === 'youtube') {
+        videoEl.style.display = 'none';
+        youtubeContainer.style.display = 'block';
+        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${streamUrl}?autoplay=1&controls=0&modestbranding=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    } else {
+        console.warn("Unsupported stream type:", streamType);
+        stopMiniPlayer();
+    }
+}
+
+function stopMiniPlayer() {
+     const playerContainer = document.getElementById('mini-player-container');
+     const videoEl = document.getElementById('mini-player-video');
+     const youtubeContainer = document.getElementById('youtube-player-iframe');
+     
+     if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+    }
+    videoEl.pause();
+    videoEl.src = '';
+    videoEl.removeAttribute('src');
+    youtubeContainer.innerHTML = '';
+    playerContainer.classList.remove('active');
+    currentStreamInfo = {};
+}
+
+function handleProgramClick(cIndex, pIndex, forceTune = false) {
+     const program = programsByChannel[cIndex]?.[pIndex];
+     const channel = guideData.channels[cIndex];
+     if (!program || !channel) return;
+     
+     selectProgram(cIndex, pIndex);
+
+     const now = new Date();
+     const isLive = program.start <= now && program.stop > now;
+
+     if (isLive || forceTune) {
+         if (channel.stream && channel.stream.url) {
+             const url = `player.html?src=${encodeURIComponent(channel.stream.url)}&type=${channel.stream.type}&title=${encodeURIComponent(program.title)}&desc=${encodeURIComponent(program.desc)}&channelId=${channel.id}`;
+             window.location.href = url;
+         } else {
+             console.warn("No stream found for this live channel:", channel.id);
+             playErrorSound();
+         }
+     } else {
+         playErrorSound();
+     }
+}
+
+function playErrorSound() {
+    if (errorSound) {
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.warn("Error sound blocked:", e));
+    }
+}
+
+function findLiveProgramIndex(channelIndex) {
+    if (!programsByChannel[channelIndex]) return -1;
+    const now = new Date();
+    return programsByChannel[channelIndex].findIndex(p => p.start <= now && p.stop > now);
 }
 
 function selectInitialProgram() {
     const now = new Date();
     for (let c = 0; c < programsByChannel.length; c++) {
-        for (let p = 0; p < programsByChannel[c].length; p++) {
-            if (programsByChannel[c][p].stop > now) {
-                selectProgram(c, p); return;
-            }
+        const startIndex = programsByChannel[c].findIndex(p => p.stop > now);
+        if (startIndex !== -1) {
+            selectProgram(c, startIndex); 
+            return;
         }
     }
     if (programsByChannel.length > 0 && programsByChannel[0].length > 0) {
         selectProgram(0, 0);
+    } else {
+         displayInitialMessage("No Programs Found", "Could not load any program data.");
     }
 }
+
 
 function selectProgram(cIndex, pIndex) {
     if (!programsByChannel[cIndex] || !programsByChannel[cIndex][pIndex]) return;
@@ -381,7 +645,7 @@ function handleKeyPress(e) {
         return;
     }
     
-    if (menu.classList.contains('visible')) return;
+    if (menu.classList.contains('visible')) return; 
 
     e.preventDefault();
     let newC = selectedChannelIndex;
@@ -394,7 +658,9 @@ function handleKeyPress(e) {
         case "ArrowDown": newC = Math.min(programsByChannel.length - 1, newC + 1); break;
         case "ArrowLeft": newP = Math.max(0, newP - 1); break;
         case "ArrowRight": newP = Math.min(programsByChannel[selectedChannelIndex].length - 1, newP + 1); break;
-        case "Enter": tuneToChannel(guideData.channels[selectedChannelIndex].id); return;
+        case "Enter": 
+            handleProgramClick(selectedChannelIndex, selectedProgramIndex);
+            return;
         default: return;
     }
 
@@ -442,13 +708,13 @@ function updateTime() {
 }
 
 async function getPosterUrl(title) {
-    if (!title || CONFIG.tmdbApiKey === 'YOUR_API_KEY_HERE') {
-        return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title || 'No Title')}`;
+    if (!title || !CONFIG.tmdbApiKey || CONFIG.tmdbApiKey === 'YOUR_API_KEY_HERE') {
+        return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title || 'N/A')}`;
     }
     try {
         const url = `https://api.themoviedb.org/3/search/multi?api_key=${CONFIG.tmdbApiKey}&query=${encodeURIComponent(title)}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to fetch from TMDb");
+        if (!res.ok) throw new Error(`TMDb search failed: ${res.status}`);
         const data = await res.json();
         const firstResult = data.results?.[0];
         if (firstResult?.poster_path) {
@@ -457,7 +723,7 @@ async function getPosterUrl(title) {
     } catch (err) {
         console.error("TMDb fetch error:", err.message);
     }
-    return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title)}`;
+    return `https://placehold.co/400x600/0c1428/FFFFFF?text=${encodeURIComponent(title || 'N/A')}`;
 }
 
 async function fetchWeather() {
@@ -466,28 +732,31 @@ async function fetchWeather() {
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${CONFIG.openWeatherApiKey}&units=imperial`;
     try {
         const res = await fetch(url);
-        if (res.status === 401) throw new Error("Unauthorized. Check your OpenWeather API key and plan.");
+        if (res.status === 401) throw new Error("Unauthorized(401). Check OpenWeather API key and plan.");
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const data = await res.json();
         const weatherEl = document.getElementById('guide-weather');
         if (weatherEl && data.main) weatherEl.textContent = `${Math.round(data.main.temp)}°F`;
     } catch (err) {
         console.error("Weather fetch error:", err.message);
+        const weatherEl = document.getElementById('guide-weather');
+        if(weatherEl) weatherEl.textContent = 'N/A';
     }
 }
 
 async function fetchHourlyForecast() {
     if (!CONFIG.enableWeather || CONFIG.openWeatherApiKey === 'YOUR_API_KEY_HERE' || !userCoords) return;
     const { latitude, longitude } = userCoords;
-    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${CONFIG.openWeatherApiKey}&units=imperial&cnt=4`;
+    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${CONFIG.openWeatherApiKey}&units=imperial&cnt=4`; 
     try {
         const res = await fetch(url);
-        if (res.status === 401) throw new Error("Unauthorized. Your OpenWeather plan may not support this forecast endpoint.");
+        if (res.status === 401) throw new Error("Unauthorized(401). Check OpenWeather API key and plan.");
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         const data = await res.json();
         const container = document.querySelector('#hourly-forecast-widget .forecast-items');
+        if(!container) return;
         container.innerHTML = '';
-        data.list.forEach(item => {
+        data.list.slice(0, 4).forEach(item => {
             const date = new Date(item.dt * 1000);
             const icon = item.weather[0].icon;
             container.innerHTML += `
@@ -499,19 +768,27 @@ async function fetchHourlyForecast() {
         });
     } catch (err) {
          console.error("Hourly forecast error:", err.message);
+         const container = document.querySelector('#hourly-forecast-widget .forecast-items');
+         if(container) container.innerHTML = '<p style="font-size: 0.8em; text-align: center; margin-top: 1rem;">Forecast unavailable.</p>';
     }
 }
 
 function buildRecommendationWidget() {
     const now = new Date();
     const upcoming = [];
-    if (!programsByChannel) return;
+    if (!guideData || !guideData.channels) return;
+    
     programsByChannel.forEach((channelProgs, cIndex) => {
+        if (!channelProgs) return;
         const nextProg = channelProgs.find(p => p.start > now);
-        if(nextProg) upcoming.push({ program: nextProg, channel: guideData.channels[cIndex] });
+        if(nextProg && guideData.channels[cIndex]) {
+            upcoming.push({ program: nextProg, channel: guideData.channels[cIndex] });
+        }
     });
 
     const container = document.querySelector('#recommendation-widget .rec-content');
+    if(!container) return;
+    
     if (upcoming.length > 0) {
         const randomRec = upcoming[Math.floor(Math.random() * upcoming.length)];
         container.innerHTML = `
@@ -523,11 +800,16 @@ function buildRecommendationWidget() {
 }
 
 function startWidgetSlideshow() {
-    const allSlides = Array.from(document.querySelectorAll('.widget-slide'));
+    const widgetContainer = document.querySelector('#side-menu #widget-slideshow-container');
+    if (!widgetContainer) return;
+
+    const allSlides = Array.from(widgetContainer.querySelectorAll('.widget-slide'));
     const slides = allSlides.filter(slide => {
         if (slide.id === 'hourly-forecast-widget' && !CONFIG.enableWeather) {
+            slide.style.display = 'none';
             return false;
         }
+        slide.style.display = 'flex';
         return true;
     });
 
@@ -543,6 +825,7 @@ function startWidgetSlideshow() {
     buildRecommendationWidget(); 
 
     setInterval(() => {
+        if(slides.length <= 1) return;
         currentSlide = (currentSlide + 1) % slides.length;
         if (slides[currentSlide].id === 'recommendation-widget') {
             buildRecommendationWidget();
@@ -561,10 +844,13 @@ function startMessageBox() {
 
     const now = new Date();
     const upcoming = [];
-    if (programsByChannel) {
+    if (guideData && guideData.channels) {
         programsByChannel.forEach((channelProgs, cIndex) => {
+             if (!channelProgs) return;
             const nextProg = channelProgs.find(p => p.start > now);
-            if(nextProg) upcoming.push({ program: nextProg, channel: guideData.channels[cIndex] });
+            if(nextProg && guideData.channels[cIndex]) {
+                upcoming.push({ program: nextProg, channel: guideData.channels[cIndex] });
+            }
         });
     }
 
@@ -586,8 +872,12 @@ function startMessageBox() {
     let currentMessageIndex = 0;
     
     function displayNextMessage() {
-        messageTextEl.textContent = allMessages[currentMessageIndex];
-        currentMessageIndex = (currentMessageIndex + 1) % allMessages.length;
+        if (allMessages.length > 0) {
+            messageTextEl.textContent = allMessages[currentMessageIndex];
+            currentMessageIndex = (currentMessageIndex + 1) % allMessages.length;
+        } else {
+            messageTextEl.textContent = '';
+        }
     }
 
     setInterval(displayNextMessage, 15000);
