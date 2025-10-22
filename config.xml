@@ -1,44 +1,63 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 <!-- 
 =================================================================================
- Interdimensional Cable - Configuration File
+ iCable Development Build - Configuration
 =================================================================================
- This file contains all the user-configurable settings for the guide.
- Simply edit the values here to customize your experience.
+ This file contains the bare configuration and customization options for the
+ iCable.
 =================================================================================
 -->
 <config>
-    <!-- API & Data Sources -->
+    <!-- Data Sources -->
     <settings>
-        <!-- URL to your XMLTV file. This can be a local path or a remote URL. (Optional) -->
-        <xmltvUrl>http://localhost:8000/xmltv.xml</xmltvUrl>
+        <!-- URL to your XMLTV file. Leave empty to use JSON. -->
+        <xmltvUrl>http://localhost:8000/api/xmltv.xml</xmltvUrl>
+        <!-- URL to your JSON guide file. Leave empty to use XMLTV. -->
+        <jsonUrl></jsonUrl>
+        <!-- URL to your M3U playlist for automatic stream mapping. (Recommended) -->
+        <m3uUrl>http://localhost:8000/api/channels.m3u</m3uUrl>
         
-        <!-- Your API key from OpenWeatherMap. (Optional) -->
-        <openWeatherApiKey>YOUR_API_KEY</openWeatherApiKey>
+        <!-- OpenWeather API for weather functionality. (Get a free key at https://openweathermap.org/api). -->
+        <openWeatherApiKey>48ec9014a51d8caf7b66463ac3b1dbaf</openWeatherApiKey>
         
-        <!-- API key from The Movie Database (TMDb) for posters. (Optional) (Free key at www.themoviedb.org) -->
-        <tmdbApiKey>YOUR_API_KEY</tmdbApiKey>
+        <!-- TMDb API for custom posters. (Get a free key at https://www.themoviedb.org) -->
+        <tmdbApiKey>9dc4d7c6c1e2867bb21d4a32714bf692</tmdbApiKey>
     </settings>
 
-    <!-- Player Settings -->
+    <!-- Player Settings (Legacy - Will be removed) -->
     <player>
-        <!-- The base URL for your TV player. The guide will append `#{channelId}` to this URL. (Integrated player in future update, I recommend TVS 99 for now.) -->
-        <url>http://localhost:8080/</url>
+        <!-- Fallback URL for channels without a defined stream. -->
+        <url></url>
+        <!-- Optional custom hotlink override for fallback channels. -->
+        <hotlinkUrl></hotlinkUrl>
     </player>
     
     <!-- Feature Toggles & Appearance -->
     <features>
-        <!-- Set to "true" to display the logo or "false" to hide it. -->
         <enableLogo>true</enableLogo>
-        <!-- URL for your logo. Leave empty for the default placeholder. -->
-        <logoUrl></logoUrl> 
-
-        <!-- Set to "true" to display the current weather and forecast widget, "false" to hide them. -->
+        <logoUrl>images/icable.png</logoUrl> 
         <enableWeather>true</enableWeather>
     </features>
 
-    <!-- Custom messages for the bottom message box. Add as many as you like. (Minimum of one message) -->
+    <!-- Custom messages for the bottom message box. -->
     <messages>
-        <message>Welcome to iCable!</message>
+        <message>Welcome to the Interdimensional Cable Guide!</message>
         <message>Press 'M' to open the main menu.</message>
     </messages>
 
@@ -54,7 +73,15 @@
         <pastBg>#263238</pastBg>
     </colors>
 
-    <!-- Custom Channels (Optional) -->
+    <!-- Manual Channel Mappings (HLS and YouTube compatible) -->
+    <streamMappings>
+        <!-- HLS Example -->
+        <stream channelId="1" type="hls">http://localhost:8000/stream/channels/47e82e66-e77f-4a9f-9ac9-4e1c5aa3aead?streamMode=hls</stream>
+        <!-- YouTube Example -->
+        <stream channelId="2" type="youtube">jfKfPfyJRdk</stream>
+    </streamMappings>
+
+    <!-- Custom Channels -->
     <customChannels>
         <channel id="1" number="1" name="BBC" logo="https://placehold.co/100x100/ffeb3b/000000?text=BBC">
             <programTitle>BBC - Not What You Think</programTitle>
