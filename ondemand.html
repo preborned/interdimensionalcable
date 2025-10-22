@@ -1,3 +1,20 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,57 +22,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>On-Demand</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        .ondemand-container {
-            padding: 2.5rem;
-            text-align: center;
-        }
-        .ondemand-container h1 {
-            color: var(--accent-color);
-            font-size: 3em;
-        }
-        .ondemand-container p {
-            font-size: 1.2em;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 2.5rem;
-            padding: 0.6rem 1.2rem;
-            background-color: var(--secondary-bg);
-            color: var(--text-color);
-            text-decoration: none;
-            border-radius: 0.5rem;
-        }
-    </style>
 </head>
 <body>
-    <div class="ondemand-container">
+    <div id="app-container">
         <h1>On-Demand</h1>
         <p>This page is under construction.</p>
-        <a href="index.html" class="back-link">Back to Guide</a>
+        <a href="index.html">Back to Guide</a>
     </div>
 
-    <script>
-        async function applyTheme() {
-            try {
-                const response = await fetch('config.xml');
-                if (!response.ok) return;
-                const xmlString = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlString, "application/xml");
-                
-                const colorNodes = xmlDoc.querySelectorAll('colors *');
-                colorNodes.forEach(node => {
-                    const key = `--${node.tagName.toLowerCase()}`;
-                    const value = node.textContent;
-                    document.documentElement.style.setProperty(key.replace(/([a-z])([A-Z])/g, '$1-$2'), value);
-                });
-            } catch (err) {
-                console.error("Could not load theme:", err);
-            }
-        }
-        applyTheme();
-    </script>
+    <div id="menu-overlay"></div>
+    <nav id="side-menu">
+        <h2>Menu</h2>
+        <div id="widget-slideshow-container">
+            <div id="hourly-forecast-widget" class="widget-slide">
+                <div class="widget-title">HOURLY FORECAST</div>
+                <div class="forecast-items"></div>
+            </div>
+            <div id="recommendation-widget" class="widget-slide">
+                <div class="widget-title">COMING UP NEXT</div>
+                <div class="rec-content"></div>
+            </div>
+        </div>
+        <ul>
+            <li><a href="index.html" class="menu-button">Guide</a></li>
+            <li><a href="ondemand.html" class="menu-button">On-Demand</a></li>
+        </ul>
+    </nav>
+    <script src="scripts/ondemand.js"></script>
 </body>
 </html>
-
