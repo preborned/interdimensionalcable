@@ -1,0 +1,465 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iCable Setup</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        #setup-container {
+            width: 100%;
+            max-width: 900px;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        
+        #setup-logo {
+            position: fixed;
+            bottom: 2rem;
+            left: 2rem;
+            width: 10rem;
+            height: auto;
+            max-width: 20vw;
+        }
+        
+        .setup-step {
+            display: none;
+            width: 100%;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .setup-step.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .setup-step h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+        }
+        
+        .setup-step p {
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+        
+        .setup-buttons {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .setup-btn {
+            padding: 1.2rem 2.5rem;
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .setup-btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .setup-btn-primary:hover, .setup-btn-primary:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 170, 255, 0.4);
+            outline: 2px solid var(--accent-color);
+        }
+        
+        .setup-btn-secondary {
+            background: var(--secondary-bg);
+            color: var(--text-color);
+            border: 2px solid var(--tertiary-bg);
+        }
+        
+        .setup-btn-secondary:hover, .setup-btn-secondary:focus {
+            background: var(--tertiary-bg);
+            outline: 2px solid var(--tertiary-bg);
+        }
+        
+        .setup-form {
+            background: var(--secondary-bg);
+            padding: 2rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--tertiary-bg);
+            margin-bottom: 2rem;
+            text-align: left;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group input[type="file"] {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--tertiary-bg);
+            border-radius: 0.375rem;
+            background: var(--primary-bg-end);
+            color: var(--text-color);
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .color-preset {
+            aspect-ratio: 1;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .color-preset:hover, .color-preset:focus {
+            transform: scale(1.05);
+            outline: 2px solid var(--accent-color);
+        }
+        
+        .color-preset.selected {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--secondary-bg);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+        
+        .disclaimer {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .disclaimer-title {
+            color: #ffaa00;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            #setup-container {
+                padding: 1rem;
+            }
+            
+            #setup-logo {
+                width: 8rem;
+                bottom: 1rem;
+                left: 1rem;
+            }
+            
+            .setup-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="setup-container">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        
+        <div class="setup-step active" id="step-welcome">
+            <h1>Welcome to iCable</h1>
+            <p>Your fully customizable, privacy-focused TV guide experience.<br>
+            Stream live channels, manage your media, and take control of your viewing.</p>
+            <div class="setup-buttons">
+                <button class="setup-btn setup-btn-primary" onclick="nextStep()" id="btn-begin">Begin Setup</button>
+            </div>
+        </div>
+        
+        <div class="setup-step" id="step-disclaimer">
+            <h1>Privacy First</h1>
+            <div class="disclaimer">
+                <div class="disclaimer-title">📱 Your Data, Your Device</div>
+                <p>All your settings, channels, and customizations are stored directly in your browser. Nothing is sent to our servers. You can export, import, or delete your data at any time from the Settings menu.</p>
+            </div>
+            <p>iCable respects your privacy. Your viewing habits, channel preferences, and personal settings never leave your device.</p>
+            <div class="setup-buttons">
+                <button class="setup-btn setup-btn-secondary" onclick="prevStep()">Back</button>
+                <button class="setup-btn setup-btn-primary" onclick="nextStep()">I Understand</button>
+            </div>
+        </div>
+        
+        <div class="setup-step" id="step-integrations">
+            <h1>Connect Your Sources</h1>
+            <p>Add your XMLTV guide, M3U playlists, or media servers. You can skip this and add them later in Settings.</p>
+            <div class="setup-form">
+                <div class="form-group">
+                    <label>XMLTV Guide URL</label>
+                    <input type="url" id="input-xmltv" placeholder="http://example.com/xmltv.xml">
+                </div>
+                <div class="form-group">
+                    <label>JSON Guide URL</label>
+                    <input type="url" id="input-json" placeholder="http://example.com/guide.json">
+                </div>
+                <div class="form-group">
+                    <label>M3U Playlist URL</label>
+                    <input type="url" id="input-m3u" placeholder="http://example.com/channels.m3u">
+                </div>
+            </div>
+            <div class="setup-buttons">
+                <button class="setup-btn setup-btn-secondary" onclick="prevStep()">Back</button>
+                <button class="setup-btn setup-btn-secondary" onclick="nextStep()">Skip</button>
+                <button class="setup-btn setup-btn-primary" onclick="saveIntegrations()">Next</button>
+            </div>
+        </div>
+        
+        <div class="setup-step" id="step-appearance">
+            <h1>Make It Yours</h1>
+            <p>Choose a color theme and customize your experience.</p>
+            <div class="setup-form">
+                <div class="form-group">
+                    <label>Color Theme</label>
+                    <div class="color-presets">
+                        <div class="color-preset selected" tabindex="0" data-theme="default-blue" style="background: linear-gradient(135deg, #1d2b4b 0%, #00aaff 100%);" onclick="selectTheme('default-blue', this)" onkeydown="handleThemeKey(event, 'default-blue', this)"></div>
+                        <div class="color-preset" tabindex="0" data-theme="midnight" style="background: linear-gradient(135deg, #0f0f23 0%, #5d5d7a 100%);" onclick="selectTheme('midnight', this)" onkeydown="handleThemeKey(event, 'midnight', this)"></div>
+                        <div class="color-preset" tabindex="0" data-theme="sunset" style="background: linear-gradient(135deg, #2b1b3d 0%, #ff6b6b 100%);" onclick="selectTheme('sunset', this)" onkeydown="handleThemeKey(event, 'sunset', this)"></div>
+                        <div class="color-preset" tabindex="0" data-theme="forest" style="background: linear-gradient(135deg, #1a3a2e 0%, #4caf50 100%);" onclick="selectTheme('forest', this)" onkeydown="handleThemeKey(event, 'forest', this)"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>System Logo (Optional)</label>
+                    <input type="file" id="input-logo" accept="image/*">
+                </div>
+            </div>
+            <div class="setup-buttons">
+                <button class="setup-btn setup-btn-secondary" onclick="prevStep()">Back</button>
+                <button class="setup-btn setup-btn-primary" onclick="saveAppearance()">Next</button>
+            </div>
+        </div>
+        
+        <div class="setup-step" id="step-complete">
+            <h1>🎉 You're All Set!</h1>
+            <p>iCable is ready to use. You can always adjust your settings by pressing 'M' and selecting Settings.</p>
+            <div class="setup-buttons">
+                <button class="setup-btn setup-btn-primary" onclick="finishSetup()">Launch iCable</button>
+            </div>
+        </div>
+        
+        <img src="images/icable.png" alt="iCable" id="setup-logo">
+    </div>
+    
+    <script src="scripts/config-manager.js"></script>
+    <script>
+        let currentStep = 0;
+        const steps = ['welcome', 'disclaimer', 'integrations', 'appearance', 'complete'];
+        let selectedTheme = 'default-blue';
+        
+        const themes = {
+            'default-blue': {
+                primaryBgStart: '#1d2b4b',
+                primaryBgEnd: '#0c1428',
+                secondaryBg: '#2a3a5e',
+                tertiaryBg: '#4d648d',
+                accent: '#00aaff',
+                text: '#f0f0f0',
+                liveBg: '#78909c',
+                pastBg: '#263238'
+            },
+            'midnight': {
+                primaryBgStart: '#0f0f23',
+                primaryBgEnd: '#000000',
+                secondaryBg: '#1a1a2e',
+                tertiaryBg: '#5d5d7a',
+                accent: '#9d84ff',
+                text: '#f0f0f0',
+                liveBg: '#7a7a9e',
+                pastBg: '#1a1a2e'
+            },
+            'sunset': {
+                primaryBgStart: '#2b1b3d',
+                primaryBgEnd: '#0d0416',
+                secondaryBg: '#3d2755',
+                tertiaryBg: '#6b4c7a',
+                accent: '#ff6b6b',
+                text: '#f0f0f0',
+                liveBg: '#ff8c8c',
+                pastBg: '#3d2755'
+            },
+            'forest': {
+                primaryBgStart: '#1a3a2e',
+                primaryBgEnd: '#0a1a12',
+                secondaryBg: '#2d5a4a',
+                tertiaryBg: '#4a7a64',
+                accent: '#4caf50',
+                text: '#f0f0f0',
+                liveBg: '#6fbf73',
+                pastBg: '#2d5a4a'
+            }
+        };
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Enter') {
+                e.preventDefault();
+                const primaryBtn = document.querySelector('.setup-step.active .setup-btn-primary');
+                if (primaryBtn) primaryBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const secondaryBtn = document.querySelector('.setup-step.active .setup-btn-secondary');
+                if (secondaryBtn) secondaryBtn.click();
+            }
+        });
+        
+        function updateProgress() {
+            const progress = (currentStep / (steps.length - 1)) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+        }
+        
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                document.getElementById(`step-${steps[currentStep]}`).classList.remove('active');
+                currentStep++;
+                document.getElementById(`step-${steps[currentStep]}`).classList.add('active');
+                updateProgress();
+                
+                const config = window.iCableConfig.get();
+                config.currentSetupStep = currentStep;
+                window.iCableConfig.save(config);
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 0) {
+                document.getElementById(`step-${steps[currentStep]}`).classList.remove('active');
+                currentStep--;
+                document.getElementById(`step-${steps[currentStep]}`).classList.add('active');
+                updateProgress();
+            }
+        }
+        
+        function saveIntegrations() {
+            const config = window.iCableConfig.get();
+            config.integrations.xmltvUrl = document.getElementById('input-xmltv').value;
+            config.integrations.jsonUrl = document.getElementById('input-json').value;
+            config.integrations.m3uUrl = document.getElementById('input-m3u').value;
+            window.iCableConfig.save(config);
+            nextStep();
+        }
+        
+        function selectTheme(themeName, element) {
+            selectedTheme = themeName;
+            document.querySelectorAll('.color-preset').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            window.iCableConfig.applyTheme(themes[themeName]);
+        }
+        
+        function handleThemeKey(event, themeName, element) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectTheme(themeName, element);
+            }
+        }
+        
+        async function saveAppearance() {
+            const config = window.iCableConfig.get();
+            config.appearance.theme = selectedTheme;
+            config.appearance.colors = themes[selectedTheme];
+            
+            const logoFile = document.getElementById('input-logo').files[0];
+            if (logoFile) {
+                try {
+                    const logoId = await window.iCableConfig.saveImage(logoFile);
+                    config.appearance.systemLogoId = logoId;
+                } catch (error) {
+                    console.error("Failed to save logo:", error);
+                }
+            }
+            
+            window.iCableConfig.save(config);
+            nextStep();
+        }
+        
+        function finishSetup() {
+            const config = window.iCableConfig.get();
+            config.setupComplete = true;
+            window.iCableConfig.save(config);
+            window.location.href = 'index.html';
+        }
+        
+        window.addEventListener('load', () => {
+            const config = window.iCableConfig.get();
+            if (config.currentSetupStep && config.currentSetupStep > 0) {
+                currentStep = config.currentSetupStep;
+                document.getElementById(`step-welcome`).classList.remove('active');
+                document.getElementById(`step-${steps[currentStep]}`).classList.add('active');
+                updateProgress();
+            }
+        });
+    </script>
+</body>
+</html>
