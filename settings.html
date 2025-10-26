@@ -1,0 +1,794 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iCable Settings</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        #settings-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        .settings-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .settings-header h1 {
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .settings-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--tertiary-bg);
+            overflow-x: auto;
+        }
+        
+        .tab-button {
+            padding: 1rem 2rem;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-size: 1rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .tab-button:hover {
+            background: var(--secondary-bg);
+        }
+        
+        .tab-button.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .settings-section {
+            background: var(--secondary-bg);
+            padding: 2rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--tertiary-bg);
+            margin-bottom: 1.5rem;
+        }
+        
+        .settings-section h3 {
+            color: var(--accent-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--tertiary-bg);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-row label {
+            font-weight: bold;
+        }
+        
+        .form-row input[type="text"],
+        .form-row input[type="url"],
+        .form-row input[type="number"],
+        .form-row select {
+            padding: 0.8rem;
+            border: 1px solid var(--tertiary-bg);
+            border-radius: 0.375rem;
+            background: var(--primary-bg-end);
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+        
+        .form-row input[type="checkbox"] {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .color-input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .color-input-group label {
+            min-width: 120px;
+        }
+        
+        .color-input-group input[type="color"] {
+            width: 50px;
+            height: 40px;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+        
+        .color-input-group input[type="text"] {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid var(--tertiary-bg);
+            border-radius: 0.375rem;
+            background: var(--primary-bg-end);
+            color: var(--text-color);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 170, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: var(--tertiary-bg);
+            color: var(--text-color);
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .message-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--primary-bg-end);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .message-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: var(--secondary-bg);
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .message-item button {
+            background: transparent;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        
+        .data-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .data-card {
+            background: var(--primary-bg-end);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        
+        .data-card h4 {
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="settings-container">
+        <a href="index.html" class="back-link">← Back to Guide</a>
+        
+        <div class="settings-header">
+            <h1>Settings</h1>
+            <p>Customize your iCable experience</p>
+        </div>
+        
+        <div class="settings-tabs">
+            <button class="tab-button active" onclick="switchTab('general')">General</button>
+            <button class="tab-button" onclick="switchTab('integrations')">Integrations</button>
+            <button class="tab-button" onclick="switchTab('channels')">Channels</button>
+            <button class="tab-button" onclick="switchTab('appearance')">Appearance</button>
+            <button class="tab-button" onclick="switchTab('data')">Data</button>
+            <button class="tab-button" onclick="switchTab('about')">About</button>
+        </div>
+        
+        <div class="tab-content active" id="tab-general">
+            <div class="settings-section">
+                <h3>Guide Settings</h3>
+                <div class="form-row">
+                    <label>View Hours</label>
+                    <input type="number" id="guide-view-hours" min="1" max="6" value="2">
+                </div>
+                <div class="form-row">
+                    <label>Total Guide Hours</label>
+                    <input type="number" id="guide-total-hours" min="6" max="24" value="12">
+                </div>
+                <div class="form-row">
+                    <label>12-Hour Format</label>
+                    <input type="checkbox" id="guide-12hour" checked>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Player Settings</h3>
+                <div class="form-row">
+                    <label>Default Quality</label>
+                    <select id="player-quality">
+                        <option value="auto">Auto</option>
+                        <option value="1080p">1080p</option>
+                        <option value="720p">720p</option>
+                        <option value="480p">480p</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Autoplay</label>
+                    <input type="checkbox" id="player-autoplay" checked>
+                </div>
+                <div class="form-row">
+                    <label>Default Muted</label>
+                    <input type="checkbox" id="player-muted">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="saveGeneral()">Save Changes</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tab-integrations">
+            <div class="settings-section">
+                <h3>Guide Data Sources</h3>
+                <div class="form-row">
+                    <label>XMLTV URL</label>
+                    <input type="url" id="int-xmltv" placeholder="http://example.com/xmltv.xml">
+                </div>
+                <div class="form-row">
+                    <label>JSON Guide URL</label>
+                    <input type="url" id="int-json" placeholder="http://example.com/guide.json">
+                </div>
+                <div class="form-row">
+                    <label>M3U Playlist URL</label>
+                    <input type="url" id="int-m3u" placeholder="http://example.com/channels.m3u">
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Media Servers</h3>
+                <div class="form-row">
+                    <label>Jellyfin Server</label>
+                    <input type="url" id="int-jellyfin-url" placeholder="http://localhost:8096">
+                </div>
+                <div class="form-row">
+                    <label>Jellyfin API Key</label>
+                    <input type="text" id="int-jellyfin-key" placeholder="Your API Key">
+                </div>
+                <div class="form-row">
+                    <label>Enable Jellyfin</label>
+                    <input type="checkbox" id="int-jellyfin-enabled">
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>APIs</h3>
+                <div class="form-row">
+                    <label>TMDb API Key</label>
+                    <input type="text" id="int-tmdb" placeholder="For movie/TV posters">
+                </div>
+                <div class="form-row">
+                    <label>OpenWeather API Key</label>
+                    <input type="text" id="int-weather" placeholder="For weather widget">
+                </div>
+                <div class="form-row">
+                    <label>Enable Weather</label>
+                    <input type="checkbox" id="int-weather-enabled">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="saveIntegrations()">Save Changes</button>
+                <button class="btn btn-secondary" onclick="testIntegrations()">Test Connections</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tab-channels">
+            <div class="settings-section">
+                <h3>Channel Management</h3>
+                <p>Manage your channels, create custom channels, and organize your lineup.</p>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="window.location.href='channel-creator.html'">+ Create Custom Channel</button>
+                    <button class="btn btn-secondary" onclick="loadChannels()">Refresh List</button>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Custom Channels</h3>
+                <div id="custom-channel-list" style="max-height: 300px; overflow-y: auto;">
+                    <p>Loading custom channels...</p>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>All Channels</h3>
+                <div id="channel-list-container" style="max-height: 400px; overflow-y: auto;">
+                    <p>Loading channels...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-appearance">
+            <div class="settings-section">
+                <h3>Color Theme</h3>
+                <div class="color-grid">
+                    <div class="color-input-group">
+                        <label>Primary Start</label>
+                        <input type="color" id="color-primary-start" value="#1d2b4b">
+                        <input type="text" id="color-primary-start-text" value="#1d2b4b">
+                    </div>
+                    <div class="color-input-group">
+                        <label>Primary End</label>
+                        <input type="color" id="color-primary-end" value="#0c1428">
+                        <input type="text" id="color-primary-end-text" value="#0c1428">
+                    </div>
+                    <div class="color-input-group">
+                        <label>Secondary BG</label>
+                        <input type="color" id="color-secondary" value="#2a3a5e">
+                        <input type="text" id="color-secondary-text" value="#2a3a5e">
+                    </div>
+                    <div class="color-input-group">
+                        <label>Tertiary BG</label>
+                        <input type="color" id="color-tertiary" value="#4d648d">
+                        <input type="text" id="color-tertiary-text" value="#4d648d">
+                    </div>
+                    <div class="color-input-group">
+                        <label>Accent Color</label>
+                        <input type="color" id="color-accent" value="#00aaff">
+                        <input type="text" id="color-accent-text" value="#00aaff">
+                    </div>
+                    <div class="color-input-group">
+                        <label>Text Color</label>
+                        <input type="color" id="color-text" value="#f0f0f0">
+                        <input type="text" id="color-text-text" value="#f0f0f0">
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="saveColors()">Apply Colors</button>
+                    <button class="btn btn-secondary" onclick="resetColors()">Reset to Default</button>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Custom Messages</h3>
+                <div class="message-list" id="message-list"></div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="new-message" placeholder="Enter custom message" style="flex: 1; padding: 0.8rem; border: 1px solid var(--tertiary-bg); border-radius: 0.375rem; background: var(--primary-bg-end); color: var(--text-color);">
+                    <button class="btn btn-primary" onclick="addMessage()">Add</button>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>System Logo</h3>
+                <input type="file" id="logo-upload" accept="image/*" style="margin-bottom: 1rem;">
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="uploadLogo()">Upload Logo</button>
+                    <button class="btn btn-secondary" onclick="removeLogo()">Remove Logo</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tab-data">
+            <div class="settings-section">
+                <h3>Data Management</h3>
+                <div class="data-actions">
+                    <div class="data-card">
+                        <h4>Export Data</h4>
+                        <p>Download your settings and channels as a backup file.</p>
+                        <button class="btn btn-primary" onclick="exportData()">Export</button>
+                    </div>
+                    <div class="data-card">
+                        <h4>Import Data</h4>
+                        <p>Restore settings from a backup file.</p>
+                        <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData()">
+                        <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Import</button>
+                    </div>
+                    <div class="data-card">
+                        <h4>Reset Everything</h4>
+                        <p>Delete all data and start fresh.</p>
+                        <button class="btn btn-danger" onclick="resetAll()">Reset</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Storage Info</h3>
+                <p id="storage-info">Calculating...</p>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tab-about">
+            <div class="settings-section">
+                <h3>About iCable</h3>
+                <p><strong>Version:</strong> 1.0.0</p>
+                <p><strong>License:</strong> GNU General Public License v3.0</p>
+                <p><strong>Copyright:</strong> © 2025 Preborned Software</p>
+                <p style="margin-top: 1.5rem;">iCable is a free, open-source TV guide and streaming platform. Your privacy is our priority - all data stays on your device.</p>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Support</h3>
+                <p>Having issues? Need help? Visit our documentation or report bugs on GitHub.</p>
+                <div class="button-group">
+                    <button class="btn btn-secondary">Documentation</button>
+                    <button class="btn btn-secondary">Report Issue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="scripts/config-manager.js"></script>
+    <script>
+        let config = {};
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            if (tabName === 'appearance') loadAppearance();
+            if (tabName === 'channels') loadChannels();
+            if (tabName === 'data') updateStorageInfo();
+        }
+        
+        function loadSettings() {
+            config = window.iCableConfig.get();
+            
+            document.getElementById('guide-view-hours').value = config.guide?.viewHours || 2;
+            document.getElementById('guide-total-hours').value = config.guide?.totalHours || 12;
+            document.getElementById('guide-12hour').checked = config.guide?.use12Hour !== false;
+            document.getElementById('player-quality').value = config.player?.defaultQuality || 'auto';
+            document.getElementById('player-autoplay').checked = config.player?.autoplay !== false;
+            document.getElementById('player-muted').checked = config.player?.muted === true;
+            
+            document.getElementById('int-xmltv').value = config.integrations?.xmltvUrl || '';
+            document.getElementById('int-json').value = config.integrations?.jsonUrl || '';
+            document.getElementById('int-m3u').value = config.integrations?.m3uUrl || '';
+            document.getElementById('int-jellyfin-url').value = config.integrations?.jellyfin?.url || '';
+            document.getElementById('int-jellyfin-key').value = config.integrations?.jellyfin?.apiKey || '';
+            document.getElementById('int-jellyfin-enabled').checked = config.integrations?.jellyfin?.enabled === true;
+            document.getElementById('int-tmdb').value = config.appearance?.tmdbApiKey || '';
+            document.getElementById('int-weather').value = config.appearance?.weatherApiKey || '';
+            document.getElementById('int-weather-enabled').checked = config.appearance?.enableWeather === true;
+        }
+        
+        function saveGeneral() {
+            config.guide = config.guide || {};
+            config.player = config.player || {};
+            
+            config.guide.viewHours = parseInt(document.getElementById('guide-view-hours').value);
+            config.guide.totalHours = parseInt(document.getElementById('guide-total-hours').value);
+            config.guide.use12Hour = document.getElementById('guide-12hour').checked;
+            config.player.defaultQuality = document.getElementById('player-quality').value;
+            config.player.autoplay = document.getElementById('player-autoplay').checked;
+            config.player.muted = document.getElementById('player-muted').checked;
+            
+            window.iCableConfig.save(config);
+            alert('Settings saved successfully!');
+        }
+        
+        function saveIntegrations() {
+            config.integrations = config.integrations || {};
+            config.integrations.jellyfin = config.integrations.jellyfin || {};
+            
+            config.integrations.xmltvUrl = document.getElementById('int-xmltv').value;
+            config.integrations.jsonUrl = document.getElementById('int-json').value;
+            config.integrations.m3uUrl = document.getElementById('int-m3u').value;
+            config.integrations.jellyfin.url = document.getElementById('int-jellyfin-url').value;
+            config.integrations.jellyfin.apiKey = document.getElementById('int-jellyfin-key').value;
+            config.integrations.jellyfin.enabled = document.getElementById('int-jellyfin-enabled').checked;
+            config.appearance.tmdbApiKey = document.getElementById('int-tmdb').value;
+            config.appearance.weatherApiKey = document.getElementById('int-weather').value;
+            config.appearance.enableWeather = document.getElementById('int-weather-enabled').checked;
+            
+            window.iCableConfig.save(config);
+            alert('Integration settings saved!');
+        }
+        
+        function testIntegrations() {
+            alert('Testing connections... (This feature will verify your URLs and API keys)');
+        }
+        
+        function loadChannels() {
+            const customContainer = document.getElementById('custom-channel-list');
+            const customChannels = config.customChannels || [];
+            
+            if (customChannels.length === 0) {
+                customContainer.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No custom channels yet. Create your first one!</p>';
+            } else {
+                let html = '';
+                customChannels.forEach((ch, index) => {
+                    const logo = ch.logoId ? 'from storage' : (ch.logo || 'images/placeholder.png');
+                    html += `
+                        <div class="channel-item" style="margin-bottom: 0.8rem; padding: 0.8rem; background: var(--primary-bg-end); border-radius: 0.5rem; display: flex; align-items: center; gap: 1rem;">
+                            <img src="${ch.logo || 'https://placehold.co/60x60/4d648d/FFFFFF?text=' + ch.name}" style="width: 3rem; height: 3rem; object-fit: contain;">
+                            <div style="flex: 1;">
+                                <strong>${ch.fullName || ch.name}</strong><br>
+                                <small>Channel ${ch.number} | ${ch.stream?.type || 'Unknown'} stream</small>
+                            </div>
+                            <button onclick="deleteCustomChannel(${index})" style="background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer;">Delete</button>
+                        </div>
+                    `;
+                });
+                customContainer.innerHTML = html;
+            }
+            
+            const container = document.getElementById('channel-list-container');
+            const allChannels = [...(config.channels || []), ...customChannels];
+            
+            if (allChannels.length === 0) {
+                container.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No channels configured yet. Add integrations or create custom channels.</p>';
+                return;
+            }
+            
+            let html = '';
+            allChannels.forEach(ch => {
+                html += `<div class="channel-item" style="margin-bottom: 0.5rem;"><img src="${ch.logo || 'images/placeholder.png'}" style="width: 3rem; height: 3rem; object-fit: contain;"><div><strong>${ch.fullName || ch.name}</strong><br><small>Channel ${ch.number}</small></div></div>`;
+            });
+            container.innerHTML = html;
+        }
+        
+        function deleteCustomChannel(index) {
+            if (!confirm('Are you sure you want to delete this custom channel?')) return;
+            
+            config.customChannels.splice(index, 1);
+            window.iCableConfig.save(config);
+            loadChannels();
+        }
+        
+        function openChannelEditor() {
+            window.location.href = 'channel-creator.html';
+        }
+        
+        function createCustomChannel() {
+            window.location.href = 'channel-creator.html';
+        }
+        
+        function loadAppearance() {
+            const colors = config.appearance?.colors || window.iCableConfig.DEFAULT.appearance.colors;
+            
+            document.getElementById('color-primary-start').value = colors.primaryBgStart;
+            document.getElementById('color-primary-start-text').value = colors.primaryBgStart;
+            document.getElementById('color-primary-end').value = colors.primaryBgEnd;
+            document.getElementById('color-primary-end-text').value = colors.primaryBgEnd;
+            document.getElementById('color-secondary').value = colors.secondaryBg;
+            document.getElementById('color-secondary-text').value = colors.secondaryBg;
+            document.getElementById('color-tertiary').value = colors.tertiaryBg;
+            document.getElementById('color-tertiary-text').value = colors.tertiaryBg;
+            document.getElementById('color-accent').value = colors.accent;
+            document.getElementById('color-accent-text').value = colors.accent;
+            document.getElementById('color-text').value = colors.text;
+            document.getElementById('color-text-text').value = colors.text;
+            
+            syncColorInputs();
+            loadMessages();
+        }
+        
+        function syncColorInputs() {
+            ['primary-start', 'primary-end', 'secondary', 'tertiary', 'accent', 'text'].forEach(id => {
+                const colorInput = document.getElementById(`color-${id}`);
+                const textInput = document.getElementById(`color-${id}-text`);
+                
+                colorInput.addEventListener('input', () => {
+                    textInput.value = colorInput.value;
+                });
+                
+                textInput.addEventListener('input', () => {
+                    colorInput.value = textInput.value;
+                });
+            });
+        }
+        
+        function saveColors() {
+            config.appearance.colors = {
+                primaryBgStart: document.getElementById('color-primary-start').value,
+                primaryBgEnd: document.getElementById('color-primary-end').value,
+                secondaryBg: document.getElementById('color-secondary').value,
+                tertiaryBg: document.getElementById('color-tertiary').value,
+                accent: document.getElementById('color-accent').value,
+                text: document.getElementById('color-text').value,
+                liveBg: '#78909c',
+                pastBg: '#263238'
+            };
+            
+            window.iCableConfig.save(config);
+            window.iCableConfig.applyTheme(config.appearance.colors);
+            alert('Colors applied! Refresh the guide to see changes.');
+        }
+        
+        function resetColors() {
+            config.appearance.colors = window.iCableConfig.DEFAULT.appearance.colors;
+            window.iCableConfig.save(config);
+            window.iCableConfig.applyTheme(config.appearance.colors);
+            loadAppearance();
+            alert('Colors reset to default!');
+        }
+        
+        function loadMessages() {
+            const list = document.getElementById('message-list');
+            const messages = config.appearance?.customMessages || [];
+            
+            list.innerHTML = messages.map((msg, i) => `
+                <div class="message-item">
+                    <span>${msg}</span>
+                    <button onclick="removeMessage(${i})">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function addMessage() {
+            const input = document.getElementById('new-message');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            config.appearance.customMessages = config.appearance.customMessages || [];
+            config.appearance.customMessages.push(msg);
+            window.iCableConfig.save(config);
+            input.value = '';
+            loadMessages();
+        }
+        
+        function removeMessage(index) {
+            config.appearance.customMessages.splice(index, 1);
+            window.iCableConfig.save(config);
+            loadMessages();
+        }
+        
+        async function uploadLogo() {
+            const file = document.getElementById('logo-upload').files[0];
+            if (!file) return;
+            
+            try {
+                const logoId = await window.iCableConfig.saveImage(file);
+                config.appearance.systemLogoId = logoId;
+                window.iCableConfig.save(config);
+                alert('Logo uploaded successfully!');
+            } catch (error) {
+                alert('Failed to upload logo: ' + error.message);
+            }
+        }
+        
+        function removeLogo() {
+            if (config.appearance.systemLogoId) {
+                window.iCableConfig.deleteImage(config.appearance.systemLogoId);
+                config.appearance.systemLogoId = null;
+                window.iCableConfig.save(config);
+                alert('Logo removed!');
+            }
+        }
+        
+        function exportData() {
+            window.iCableConfig.export();
+        }
+        
+        async function importData() {
+            const file = document.getElementById('import-file').files[0];
+            if (!file) return;
+            
+            try {
+                const imported = await window.iCableConfig.import(file);
+                config = imported;
+                loadSettings();
+                alert('Data imported successfully! Refresh the page to see changes.');
+            } catch (error) {
+                alert('Failed to import data: ' + error.message);
+            }
+        }
+        
+        function resetAll() {
+            window.iCableConfig.reset();
+        }
+        
+        function updateStorageInfo() {
+            if (navigator.storage && navigator.storage.estimate) {
+                navigator.storage.estimate().then(estimate => {
+                    const used = (estimate.usage / 1024 / 1024).toFixed(2);
+                    const quota = (estimate.quota / 1024 / 1024).toFixed(2);
+                    document.getElementById('storage-info').textContent = `Using ${used} MB of ${quota} MB available`;
+                });
+            } else {
+                document.getElementById('storage-info').textContent = 'Storage info not available';
+            }
+        }
+        
+        window.addEventListener('load', loadSettings);
+    </script>
+</body>
+</html>
