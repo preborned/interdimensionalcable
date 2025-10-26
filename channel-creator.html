@@ -1,0 +1,656 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iCable - Create Custom Channel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            overflow-y: auto;
+        }
+        
+        #creator-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+        
+        .creator-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .creator-header h1 {
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .creator-section {
+            background: var(--secondary-bg);
+            padding: 2rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--tertiary-bg);
+            margin-bottom: 2rem;
+        }
+        
+        .creator-section h3 {
+            color: var(--accent-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--tertiary-bg);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 1rem;
+            align-items: start;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-row label {
+            font-weight: bold;
+            padding-top: 0.8rem;
+        }
+        
+        .form-row input[type="text"],
+        .form-row input[type="url"],
+        .form-row input[type="number"],
+        .form-row select,
+        .form-row textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--tertiary-bg);
+            border-radius: 0.375rem;
+            background: var(--primary-bg-end);
+            color: var(--text-color);
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .form-row textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .form-row input:focus,
+        .form-row select:focus,
+        .form-row textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        .form-row input[type="checkbox"] {
+            width: 1.5rem;
+            height: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .help-text {
+            font-size: 0.85em;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+        }
+        
+        .logo-preview {
+            width: 100px;
+            height: 100px;
+            border: 2px dashed var(--tertiary-bg);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: var(--primary-bg-end);
+        }
+        
+        .logo-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .logo-preview-empty {
+            color: var(--tertiary-bg);
+            font-size: 0.9em;
+        }
+        
+        .epg-blocks {
+            background: var(--primary-bg-end);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .epg-block {
+            background: var(--secondary-bg);
+            padding: 0.8rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .epg-block-info {
+            flex: 1;
+        }
+        
+        .epg-block-title {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+        
+        .epg-block-time {
+            font-size: 0.85em;
+            opacity: 0.7;
+        }
+        
+        .epg-block-remove {
+            background: transparent;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+        }
+        
+        .add-epg-form {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--secondary-bg);
+            border-radius: 0.5rem;
+        }
+        
+        .add-epg-form input {
+            padding: 0.6rem;
+            border: 1px solid var(--tertiary-bg);
+            border-radius: 0.375rem;
+            background: var(--primary-bg-end);
+            color: var(--text-color);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+            flex: 1;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 170, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: var(--tertiary-bg);
+            color: var(--text-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--tertiary-bg);
+            filter: brightness(1.2);
+        }
+        
+        .stream-type-select {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stream-type-btn {
+            flex: 1;
+            padding: 0.6rem;
+            background: var(--primary-bg-end);
+            border: 2px solid var(--tertiary-bg);
+            color: var(--text-color);
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .stream-type-btn.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
+        
+        .preview-panel {
+            background: var(--primary-bg-end);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--tertiary-bg);
+        }
+        
+        .preview-channel {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .preview-channel img {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+        }
+        
+        .preview-channel-info h4 {
+            margin: 0 0 0.25rem 0;
+            color: var(--accent-color);
+        }
+        
+        .preview-channel-info p {
+            margin: 0;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row label {
+                padding-top: 0;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="creator-container">
+        <div class="creator-header">
+            <h1>Create Custom Channel</h1>
+            <p>Build your own custom channel for the guide.</p>
+        </div>
+        
+        <div class="creator-section">
+            <h3>Channel Information</h3>
+            <div class="form-row">
+                <label>Channel Number *</label>
+                <div>
+                    <input type="number" id="channel-number" placeholder="367" min="1" max="9999">
+                    <div class="help-text">Must be unique and not already in use</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Channel Name *</label>
+                <div>
+                    <input type="text" id="channel-abbr" placeholder="CSTM" maxlength="4" style="text-transform: uppercase;">
+                    <div class="help-text">4-letter abbreviation (e.g., ESPN, HBO)</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Full Channel Name *</label>
+                <div>
+                    <input type="text" id="channel-full-name" placeholder="My Custom Channel">
+                    <div class="help-text">The display name for your channel</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Description</label>
+                <textarea id="channel-description" placeholder="My custom channel about sludge."></textarea>
+            </div>
+        </div>
+        
+        <div class="creator-section">
+            <h3>Channel Logo</h3>
+            <div class="form-row">
+                <label>Upload Logo</label>
+                <div>
+                    <input type="file" id="logo-upload" accept="image/*" onchange="previewLogo()">
+                    <div class="help-text">Recommended: Square image, 200x200px minimum</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Logo URL (Alternative)</label>
+                <div>
+                    <input type="url" id="logo-url" placeholder="https://example.com/logo.png" onchange="previewLogoUrl()">
+                    <div class="help-text">Or provide a direct link to an image</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Preview</label>
+                <div class="logo-preview" id="logo-preview">
+                    <div class="logo-preview-empty">No logo selected</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Use as Watermark</label>
+                <div>
+                    <input type="checkbox" id="logo-watermark">
+                    <div class="help-text">Display logo in corner during playback</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="creator-section">
+            <h3>Stream Configuration</h3>
+            <div class="form-row">
+                <label>Stream Type *</label>
+                <div>
+                    <div class="stream-type-select">
+                        <button class="stream-type-btn active" onclick="selectStreamType('hls', this)">HLS</button>
+                        <button class="stream-type-btn" onclick="selectStreamType('youtube', this)">YouTube</button>
+                        <button class="stream-type-btn" onclick="selectStreamType('twitch', this)">Twitch</button>
+                        <button class="stream-type-btn" onclick="selectStreamType('iframe', this)">iFrame</button>
+                    </div>
+                    <input type="hidden" id="stream-type" value="hls">
+                </div>
+            </div>
+            
+            <div class="form-row" id="hls-input">
+                <label>HLS Stream URL *</label>
+                <div>
+                    <input type="url" id="hls-url" placeholder="https://example.com/stream.m3u8">
+                    <div class="help-text">Direct link to .m3u8 playlist file</div>
+                </div>
+            </div>
+            
+            <div class="form-row" id="youtube-input" style="display: none;">
+                <label>YouTube URL *</label>
+                <div>
+                    <input type="url" id="youtube-url" placeholder="https://youtube.com/watch?v=... or playlist">
+                    <div class="help-text">Video or playlist URL</div>
+                </div>
+            </div>
+            
+            <div class="form-row" id="twitch-input" style="display: none;">
+                <label>Twitch Channel *</label>
+                <div>
+                    <input type="text" id="twitch-channel" placeholder="channelname">
+                    <div class="help-text">Just the channel name (no URL)</div>
+                </div>
+            </div>
+            
+            <div class="form-row" id="iframe-input" style="display: none;">
+                <label>iFrame URL *</label>
+                <div>
+                    <input type="url" id="iframe-url" placeholder="https://example.com/embed">
+                    <div class="help-text">Any embeddable player URL</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="creator-section">
+            <h3>Program Schedule (EPG)</h3>
+            <p style="margin-bottom: 1rem; opacity: 0.8;">Define what's "playing" on your channel. Programs repeat in a loop.</p>
+            
+            <div class="epg-blocks" id="epg-list">
+            </div>
+            
+            <div class="add-epg-form">
+                <input type="text" id="new-program-title" placeholder="Program Title">
+                <input type="number" id="new-program-duration" placeholder="Duration (minutes)" min="1" value="30">
+                <textarea id="new-program-desc" placeholder="Program description (optional)" rows="2"></textarea>
+                <button class="btn btn-secondary" onclick="addEpgBlock()">+ Add Program</button>
+            </div>
+        </div>
+        
+        <div class="creator-section">
+            <h3>Preview</h3>
+            <div class="preview-panel">
+                <div class="preview-channel">
+                    <img id="preview-logo" src="https://placehold.co/100x100/4d648d/FFFFFF?text=?" alt="Logo">
+                    <div class="preview-channel-info">
+                        <h4 id="preview-name">Channel Name</h4>
+                        <p id="preview-number">Channel 000</p>
+                    </div>
+                </div>
+                <p id="preview-desc" style="opacity: 0.8;">Channel description will appear here...</p>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-secondary" onclick="window.location.href='settings.html'">Cancel</button>
+            <button class="btn btn-primary" onclick="saveChannel()">Create Channel</button>
+        </div>
+    </div>
+    
+    <script src="scripts/config-manager.js"></script>
+    <script>
+        let currentStreamType = 'hls';
+        let logoData = null;
+        let epgBlocks = [];
+        
+        document.getElementById('channel-number').addEventListener('input', updatePreview);
+        document.getElementById('channel-abbr').addEventListener('input', updatePreview);
+        document.getElementById('channel-full-name').addEventListener('input', updatePreview);
+        document.getElementById('channel-description').addEventListener('input', updatePreview);
+        
+        function updatePreview() {
+            const number = document.getElementById('channel-number').value || '000';
+            const abbr = document.getElementById('channel-abbr').value.toUpperCase() || 'CSTM';
+            const fullName = document.getElementById('channel-full-name').value || 'Channel Name';
+            const desc = document.getElementById('channel-description').value || 'Channel description will appear here...';
+            
+            document.getElementById('preview-number').textContent = `Channel ${number}`;
+            document.getElementById('preview-name').textContent = `${number} ${abbr}`;
+            document.getElementById('preview-desc').textContent = desc;
+        }
+        
+        function selectStreamType(type, btn) {
+            currentStreamType = type;
+            document.getElementById('stream-type').value = type;
+            
+            document.querySelectorAll('.stream-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            document.getElementById('hls-input').style.display = type === 'hls' ? 'grid' : 'none';
+            document.getElementById('youtube-input').style.display = type === 'youtube' ? 'grid' : 'none';
+            document.getElementById('twitch-input').style.display = type === 'twitch' ? 'grid' : 'none';
+            document.getElementById('iframe-input').style.display = type === 'iframe' ? 'grid' : 'none';
+        }
+        
+        async function previewLogo() {
+            const file = document.getElementById('logo-upload').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                logoData = e.target.result;
+                document.getElementById('logo-preview').innerHTML = `<img src="${logoData}" alt="Logo">`;
+                document.getElementById('preview-logo').src = logoData;
+                document.getElementById('logo-url').value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function previewLogoUrl() {
+            const url = document.getElementById('logo-url').value;
+            if (!url) return;
+            
+            logoData = url;
+            document.getElementById('logo-preview').innerHTML = `<img src="${url}" alt="Logo">`;
+            document.getElementById('preview-logo').src = url;
+            document.getElementById('logo-upload').value = '';
+        }
+        
+        function addEpgBlock() {
+            const title = document.getElementById('new-program-title').value.trim();
+            const duration = parseInt(document.getElementById('new-program-duration').value);
+            const desc = document.getElementById('new-program-desc').value.trim();
+            
+            if (!title) {
+                alert('Please enter a program title');
+                return;
+            }
+            
+            if (!duration || duration < 1) {
+                alert('Please enter a valid duration');
+                return;
+            }
+            
+            const block = {
+                title,
+                duration,
+                desc: desc || 'No description provided.'
+            };
+            
+            epgBlocks.push(block);
+            renderEpgBlocks();
+            
+            document.getElementById('new-program-title').value = '';
+            document.getElementById('new-program-duration').value = '30';
+            document.getElementById('new-program-desc').value = '';
+        }
+        
+        function renderEpgBlocks() {
+            const container = document.getElementById('epg-list');
+            
+            if (epgBlocks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 2rem;">No programs added yet. Add your first program below!</p>';
+                return;
+            }
+            
+            container.innerHTML = epgBlocks.map((block, index) => `
+                <div class="epg-block">
+                    <div class="epg-block-info">
+                        <div class="epg-block-title">${block.title}</div>
+                        <div class="epg-block-time">${block.duration} minutes</div>
+                    </div>
+                    <button class="epg-block-remove" onclick="removeEpgBlock(${index})">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function removeEpgBlock(index) {
+            epgBlocks.splice(index, 1);
+            renderEpgBlocks();
+        }
+        
+        async function saveChannel() {
+            const number = document.getElementById('channel-number').value;
+            const abbr = document.getElementById('channel-abbr').value.toUpperCase();
+            const fullName = document.getElementById('channel-full-name').value;
+            
+            if (!number) {
+                alert('Please enter a channel number');
+                return;
+            }
+            
+            if (!abbr || abbr.length !== 4) {
+                alert('Please enter a 4-letter channel abbreviation');
+                return;
+            }
+            
+            if (!fullName) {
+                alert('Please enter a full channel name');
+                return;
+            }
+            
+            let streamUrl = '';
+            switch (currentStreamType) {
+                case 'hls':
+                    streamUrl = document.getElementById('hls-url').value;
+                    break;
+                case 'youtube':
+                    streamUrl = document.getElementById('youtube-url').value;
+                    const ytMatch = streamUrl.match(/(?:youtube\.com\/(?:watch\?v=|playlist\?list=)|youtu\.be\/)([^&\s]+)/);
+                    if (ytMatch) streamUrl = ytMatch[1];
+                    break;
+                case 'twitch':
+                    streamUrl = document.getElementById('twitch-channel').value;
+                    break;
+                case 'iframe':
+                    streamUrl = document.getElementById('iframe-url').value;
+                    break;
+            }
+            
+            if (!streamUrl) {
+                alert('Please enter a valid stream URL');
+                return;
+            }
+            
+            const config = window.iCableConfig.get();
+            const existingChannel = [...(config.channels || []), ...(config.customChannels || [])].find(ch => ch.number === number);
+            if (existingChannel) {
+                if (!confirm(`Channel number ${number} is already in use. Overwrite?`)) {
+                    return;
+                }
+            }
+            
+            let logoId = null;
+            if (logoData && logoData.startsWith('data:')) {
+                try {
+                    const blob = await fetch(logoData).then(r => r.blob());
+                    const file = new File([blob], 'logo.png', { type: blob.type });
+                    logoId = await window.iCableConfig.saveImage(file);
+                } catch (error) {
+                    console.error('Failed to save logo:', error);
+                }
+            }
+            
+            const channel = {
+                id: `custom_${Date.now()}`,
+                number: number,
+                name: abbr,
+                fullName: fullName,
+                logo: logoData && !logoData.startsWith('data:') ? logoData : null,
+                logoId: logoId,
+                description: document.getElementById('channel-description').value,
+                watermark: document.getElementById('logo-watermark').checked,
+                stream: {
+                    type: currentStreamType,
+                    url: streamUrl
+                },
+                epg: epgBlocks,
+                custom: true,
+                enabled: true
+            };
+            
+            config.customChannels = config.customChannels || [];
+            config.customChannels.push(channel);
+            window.iCableConfig.save(config);
+            
+            alert('Channel created successfully!');
+            window.location.href = 'settings.html';
+        }
+        
+        renderEpgBlocks();
+        updatePreview();
+    </script>
+</body>
+</html>
