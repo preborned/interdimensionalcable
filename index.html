@@ -1,4 +1,3 @@
-
 <!--
  Copyright (C) 2025 Preborned Software
 
@@ -21,8 +20,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>icable-development</title>
+    <title>iCable - Your TV Guide</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        @keyframes zoomIn {
+            from {
+                opacity: 0;
+                transform: scale(1.05);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes zoomOut {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+        }
+        
+        #mini-player-container {
+            aspect-ratio: 16 / 9;
+            width: 100%;
+            height: auto;
+        }
+        
+        #mini-player-video,
+        #youtube-player-iframe iframe {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
 </head>
 <body>
 
@@ -56,7 +91,7 @@
                              <div id="progress-bar-container">
                                 <div id="progress-bar-filled"></div>
                             </div>
-                            <button href="player/player.html" id="fullscreen-button" title="Go Fullscreen">[ ]</button>
+                            <button id="fullscreen-button" title="Go Fullscreen">[ ]</button>
                         </div>
                     </div>
                 </div>
@@ -88,16 +123,21 @@
                 <div class="widget-title">COMING UP NEXT</div>
                 <div class="rec-content"></div>
             </div>
+            <div id="custom-message-widget" class="widget-slide">
+                <div class="widget-title">MESSAGE</div>
+                <div class="widget-content"></div>
+            </div>
         </div>
         <h2>Menu</h2>
         <ul>
+            <li><a href="settings.html" class="menu-button">Settings</a></li>
             <li><a href="ondemand.html" class="menu-button">On-Demand</a></li>
         </ul>
     </nav>
     
     <audio id="error-sound" src="https://www.myinstants.com/media/sounds/windows-8-1-error-sound.mp3" preload="auto"></audio>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="scripts/config-manager.js"></script>
     <script src="scripts/main.js"></script>
 </body>
 </html>
-
