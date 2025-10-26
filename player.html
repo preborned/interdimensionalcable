@@ -1,9 +1,26 @@
+<!--
+ Copyright (C) 2025 Preborned Software
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player</title>
+    <title>iCable Player</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         body, html {
@@ -14,11 +31,38 @@
             background-color: #000;
             overflow: hidden;
         }
+        
         #app-container {
             width: 100%;
             height: 100%;
             position: relative;
+            background-color: transparent;
+            color: var(--text-color, #f0f0f0);
+            font-family: var(--font-main, 'Inter', sans-serif);
+            animation: zoomIn 0.4s ease-out;
         }
+        
+        @keyframes zoomIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        #app-container.blurred {
+            filter: blur(8px) brightness(0.4);
+        }
+        
+        #fullscreen-player-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
         #fullscreen-video, #youtube-player-iframe-fs iframe {
             width: 100%;
             height: 100%;
@@ -26,40 +70,423 @@
             top: 0;
             left: 0;
         }
+        
         #info-bar {
             position: absolute;
-            top: -200px;
-            left: 2rem;
-            right: 2rem;
-            padding: 1rem;
-            background: rgba(0,0,0,0.7);
-            border-radius: 0 0 10px 10px;
-            transition: top 0.5s ease-in-out;
-            z-index: 10;
-        }
-        #info-bar.visible {
             top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, 
+                var(--primary-bg-start) 0%, 
+                var(--secondary-bg) 50%, 
+                rgba(0,0,0,0.3) 100%);
+            padding: 1rem 2rem 1.5rem 2rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 50;
+            pointer-events: none;
         }
-        #info-bar h2 { margin: 0 0 0.5rem 0; }
-        #info-bar p { margin: 0; max-height: 100px; overflow: auto; }
+        
+        #info-bar.visible {
+            opacity: 1;
+        }
+        
+        .info-row-1 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+        
+        #info-system-logo {
+            height: 2rem;
+            object-fit: contain;
+        }
+        
+        .info-weather-time {
+            display: flex;
+            gap: 1rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .info-row-2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+        
+        .info-channel-group {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+        
+        #info-channel-logo {
+            height: 3rem;
+            width: 3rem;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.4rem;
+            padding: 0.4rem;
+        }
+        
+        .info-channel-text {
+            display: flex;
+            align-items: baseline;
+            gap: 0.6rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        #info-channel-num {
+            color: var(--accent-color);
+        }
+        
+        #info-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            max-width: 50%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
+        }
+        
+        .info-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+            margin-bottom: 0.8rem;
+        }
+        
+        .info-row-3 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .info-box-left {
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        
+        .info-box-right {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+        }
+        
+        .indicator {
+            background: var(--accent-color);
+            color: #000;
+            padding: 0.25rem 0.6rem;
+            border-radius: 0.25rem;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        
+        .portal-icon {
+            font-size: 1.5rem;
+            opacity: 0.3;
+            filter: grayscale(100%);
+        }
+        
+        .portal-icon.active {
+            opacity: 1;
+            filter: grayscale(0%);
+            color: var(--accent-color);
+        }
+        
+        #control-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(0deg, 
+                var(--primary-bg-end) 0%, 
+                rgba(0,0,0,0.7) 60%, 
+                transparent 100%);
+            padding: 1.5rem 2rem 1rem 2rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 50;
+            pointer-events: none;
+        }
+        
+        #control-bar.visible {
+            opacity: 1;
+        }
+        
+        .control-keys {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .control-key {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+        }
+        
+        .key-btn {
+            background: var(--tertiary-bg);
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.3rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            min-width: 2rem;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+        
+        #dvr-controls {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 1rem 2rem;
+            border-radius: 0.6rem;
+            display: none;
+            align-items: center;
+            gap: 2rem;
+            z-index: 45;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #dvr-controls.visible {
+            display: flex;
+            opacity: 1;
+        }
+        
+        .dvr-control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        
+        .dvr-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .dvr-btn:hover:not(.disabled) {
+            color: var(--accent-color);
+            transform: scale(1.15);
+        }
+        
+        .dvr-btn.disabled {
+            color: #555;
+            cursor: not-allowed;
+        }
+        
+        .dvr-keybind {
+            font-size: 0.75rem;
+            color: var(--accent-color);
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+        
+        #unmute-message {
+            position: absolute;
+            bottom: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            color: var(--accent-color);
+            display: none;
+            z-index: 44;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        #unmute-message.visible {
+            display: block;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+        
+        #pause-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            z-index: 40;
+        }
+        
+        #pause-overlay.visible {
+            display: flex;
+        }
+        
+        #channel-surf-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 2rem 3rem;
+            border-radius: 0.75rem;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            z-index: 60;
+            border: 2px solid var(--accent-color);
+        }
+        
+        #channel-surf-indicator.visible {
+            display: flex;
+        }
+        
+        #surf-channel-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+        
+        #surf-channel-info {
+            text-align: center;
+        }
+        
+        #surf-channel-num {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        
+        #surf-channel-name {
+            font-size: 1.5rem;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div id="app-container">
         <div id="fullscreen-player-container">
-            <video id="fullscreen-video" playsinline autoplay></video>
+            <video id="fullscreen-video" playsinline muted></video>
             <div id="youtube-player-iframe-fs"></div>
-
-            <div id="info-bar">
-                <h2 id="info-title"></h2>
-                <p id="info-desc"></p>
+            
+            <div id="info-bar" class="visible">
+                <div class="info-row-1">
+                    <img id="info-system-logo" src="images/icable.png" alt="iCable">
+                    <div class="info-weather-time">
+                        <span id="info-weather">--°F</span>
+                        <span>|</span>
+                        <span id="info-clock">--:-- --</span>
+                    </div>
+                </div>
+                
+                <div class="info-row-2">
+                    <div class="info-channel-group">
+                        <img id="info-channel-logo" src="" alt="Ch">
+                        <div class="info-channel-text">
+                            <span id="info-channel-num">000</span>
+                            <span id="info-channel-name">Channel Name</span>
+                        </div>
+                    </div>
+                    <div id="info-title">Program Title</div>
+                </div>
+                
+                <div class="info-divider"></div>
+                
+                <div class="info-row-3">
+                    <div class="info-box-left">
+                        <span id="info-timeslot">--:-- - --:--</span>
+                    </div>
+                    <div class="info-box-right">
+                        <span class="indicator" id="info-hd" style="display: none;">HD</span>
+                        <span class="indicator" id="info-cc" style="display: none;">CC</span>
+                        <span class="portal-icon" id="portal-icon" title="Portal inactive">🌐</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="pause-overlay">||</div>
+            
+            <div id="channel-surf-indicator">
+                <img id="surf-channel-logo" src="" alt="Ch">
+                <div id="surf-channel-info">
+                    <div id="surf-channel-num">000</div>
+                    <div id="surf-channel-name">Channel Name</div>
+                </div>
+            </div>
+            
+            <div id="unmute-message">Press [Shift] to unmute</div>
+            
+            <div id="dvr-controls">
+                <div class="dvr-control-group">
+                    <button class="dvr-btn" id="dvr-rewind" title="Rewind 10s">⏪</button>
+                    <span class="dvr-keybind">←</span>
+                </div>
+                <div class="dvr-control-group">
+                    <button class="dvr-btn" id="dvr-play-pause" title="Play/Pause">▶</button>
+                    <span class="dvr-keybind">SPACE</span>
+                </div>
+                <div class="dvr-control-group">
+                    <button class="dvr-btn" id="dvr-forward" title="Forward 10s">⏩</button>
+                    <span class="dvr-keybind">→</span>
+                </div>
+            </div>
+            
+            <div id="control-bar" class="visible">
+                <div class="control-keys">
+                    <div class="control-key">
+                        <span class="key-btn">M</span>
+                        <span>Menu</span>
+                    </div>
+                    <div class="control-key">
+                        <span class="key-btn">G</span>
+                        <span>Guide</span>
+                    </div>
+                    <div class="control-key">
+                        <span class="key-btn">↑↓</span>
+                        <span>Surf</span>
+                    </div>
+                    <div class="control-key">
+                        <span class="key-btn">⇧</span>
+                        <span>Mute</span>
+                    </div>
+                    <div class="control-key">
+                        <span class="key-btn">I</span>
+                        <span>Info</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
+    
     <div id="menu-overlay"></div>
     <nav id="side-menu">
-        <h2>Menu</h2>
         <div id="widget-slideshow-container">
             <div id="hourly-forecast-widget" class="widget-slide">
                 <div class="widget-title">HOURLY FORECAST</div>
@@ -70,14 +497,17 @@
                 <div class="rec-content"></div>
             </div>
         </div>
+        <h2>Menu</h2>
         <ul>
             <li><a href="index.html" class="menu-button">Guide</a></li>
+            <li><a href="settings.html" class="menu-button">Settings</a></li>
             <li><a href="ondemand.html" class="menu-button">On-Demand</a></li>
         </ul>
     </nav>
-
+    
+    <audio id="error-sound" src="https://www.myinstants.com/media/sounds/windows-8-1-error-sound.mp3" preload="auto"></audio>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="scripts/config-manager.js"></script>
     <script src="scripts/player.js"></script>
 </body>
 </html>
-
