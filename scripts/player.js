@@ -26,6 +26,7 @@ let programEndTime = null;
 let errorSound = null;
 let allChannels = [];
 let currentChannelIndex = -1;
+let hideTimeout = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
@@ -38,9 +39,239 @@ document.addEventListener('DOMContentLoaded', async () => {
     const channelName = params.get('channelName');
     const startTime = params.get('startTime');
     const endTime = params.get('endTime');
+    const noAnimation = params.get('noAnimation') === 'true';
     
     videoElement = document.getElementById('fullscreen-video');
     errorSound = document.getElementById('error-sound');
+    
+    const persistentUnmute = sessionStorage.getItem('playerUnmuted') === 'true';
+    isMuted = !persistentUnmute;
+    
+    const appContainer = document.getElementById('app-container');
+    if (noAnimation) {
+        appContainer.style.animation = 'none';
+    }
+    
+    const config = window.iCableConfig.get();
+    
+    if (config.appearance?.enableWeather) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            window.MenuWidgets.init(config, pos.coords);
+        }, () => {
+            window.MenuWidgets.init(config);
+        });
+    } else {
+        window.MenuWidgets.init(config);
+    }
+    
+    sessionStorage.setItem('lastStream', JSON.stringify({
+        src, type: streamType, channelId, channelLogo, channelNum, channelName, title
+    }));
+    
+    if (startTime && endTime) {
+        programStartTime = new Date(parseInt(startTime));
+        programEndTime = new Date(parseInt(endTime));
+        
+        const startStr = programStartTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const endStr = programEndTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        document.getElementById('info-timeslot').textContent = `${startStr} - ${endStr}`;
+    }
+    
+    allChannels = [...(config.channels || []), ...(config.customChannels || [])];
+    allChannels.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+    currentChannelIndex = allChannels.findIndex(ch => ch.id === channelId);
+    
+    if (config.appearance?.systemLogoId) {
+        const logoData = await window.iCableConfig.getImage(config.appearance.systemLogoId);
+        if (logoData) {
+            document.getElementById('info-system-logo').src = logoData.data;
+        }
+    }
+    
+    document.getElementById('info-title').textContent = title;
+    document.getElementById('info-channel-logo').src = channelLogo || 'https://placehold.co/100x100/4d648d/FFFFFF?text=' + channelNum;
+    document.getElementById('info-channel-num').textContent = channelNum || '000';
+    document.getElementById('info-channel-name').textContent = channelName || 'Channel';
+    document.getElementById('info-hd').style.display = 'inline-block';
+    
+    updateClock();
+    setInterval(updateClock, 10000);
+    
+    if (config.appearance?.enableWeather) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            fetchWeather(pos.coords, config.appearance.weatherApiKey);
+        }, () => {});
+    }
+    
+    startPlayback(src, streamType);
+    
+    if (isMuted) {
+        document.getElementById('unmute-message').classList.add('visible');
+        setTimeout(() => {
+            document.getElementById('unmute-message').classList.remove('visible');
+        }, 5000);
+    }
+    
+    scheduleHide();
+    
+    document.addEventListener('mousemove', () => {
+        if (!isPaused) {
+            showOverlays();
+            scheduleHide();
+        }
+    });
+    
+    document.addEventListener('keydown', handleKeyPress);
+    
+    setupDVRControls();
+    
+    const menuOverlay = document.getElementById('menu-overlay');
+    if (menuOverlay) {
+        menuOverlay.addEventListener('click', toggleMenu);
+    }
+});
+
+function handleKeyPress(e) {
+    const menu = document.getElementById('side-menu');
+    
+    if (menu.classList.contains('visible')) {
+        if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
+            toggleMenu();
+            return;
+        }
+        
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
+            const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
+            
+            if (e.key === 'ArrowUp') {
+                const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
+                menuButtons[prevIndex].focus();
+            } else {
+                const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
+                menuButtons[nextIndex].focus();
+            }
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            if (document.activeElement.classList.contains('menu-button')) {
+                const params = new URLSearchParams(window.location.search);
+                const channelId = params.get('channelId');
+                if (channelId) {
+                    sessionStorage.setItem('returnFromPlayerChannelId', channelId);
+                }
+                document.activeElement.click();
+            }
+            return;
+        }
+        
+        return;
+    }
+    
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    const key = e.key.toLowerCase();
+    
+    if (key === 'g') {
+        const params = new URLSearchParams(window.location.search);
+        const channelId = params.get('channelId');
+        if (channelId) {
+            sessionStorage.setItem('returnFromPlayerChannelId', channelId);
+        }
+        
+        const app = document.getElementById('app-container');
+        app.style.animation = 'zoomOut 0.3s ease-in forwards';
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 300);
+    } else if (key === 'm') {
+        toggleMenu();
+    } else if (e.shiftKey && !e.repeat) {
+        e.preventDefault();
+        if (videoElement && videoElement.style.display !== 'none') {
+            videoElement.muted = !videoElement.muted;
+            isMuted = videoElement.muted;
+            
+            sessionStorage.setItem('playerUnmuted', !isMuted ? 'true' : 'false');
+            
+            if (!isMuted && videoElement.paused) {
+                videoElement.play().catch(err => console.warn('Play failed:', err));
+            }
+            
+            if (!isMuted) {
+                document.getElementById('unmute-message').classList.remove('visible');
+            }
+        }
+    } else if (key === 'arrowup') {
+        e.preventDefault();
+        channelSurf(-1);
+    } else if (key === 'arrowdown') {
+        e.preventDefault();
+        channelSurf(1);
+    } else if (key === 'p') {
+        alert('🚀 Portal (Watch Together) coming soon!');
+    } else if (key === ' ' || key === 'spacebar') {
+        e.preventDefault();
+        togglePlayPause();
+    } else if (key === 'arrowleft') {
+        e.preventDefault();
+        seekRelative(-10);
+    } else if (key === 'arrowright') {
+        e.preventDefault();
+        seekRelative(10);
+    } else if (key === 'i') {
+        e.preventDefault();
+        toggleInfoBar();
+    }
+}
+
+function toggleMenu() {
+    const appContainer = document.getElementById('app-container');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const sideMenu = document.getElementById('side-menu');
+    const isOpening = !sideMenu.classList.contains('visible');
+    
+    if (appContainer) appContainer.classList.toggle('blurred');
+    if (menuOverlay) menuOverlay.classList.toggle('visible');
+    if (sideMenu) sideMenu.classList.toggle('visible');
+    
+    if (isOpening) {
+        setTimeout(() => {
+            const firstMenuItem = sideMenu.querySelector('.menu-button');
+            if (firstMenuItem) firstMenuItem.focus();
+        }, 100);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    const src = params.get('src');
+    streamType = params.get('type');
+    const title = params.get('title') || 'Unknown Program';
+    const channelId = params.get('channelId');
+    const channelLogo = params.get('channelLogo');
+    const channelNum = params.get('channelNum');
+    const channelName = params.get('channelName');
+    const startTime = params.get('startTime');
+    const endTime = params.get('endTime');
+    const noAnimation = params.get('noAnimation') === 'true';
+    
+    videoElement = document.getElementById('fullscreen-video');
+    errorSound = document.getElementById('error-sound');
+    
+    const persistentUnmute = sessionStorage.getItem('playerUnmuted') === 'true';
+    isMuted = !persistentUnmute;
+    
+    const appContainer = document.getElementById('app-container');
+    if (noAnimation) {
+        appContainer.style.animation = 'none';
+    }
+    
+    sessionStorage.setItem('lastStream', JSON.stringify({
+        src, type: streamType, channelId, channelLogo, channelNum, channelName, title
+    }));
     
     if (startTime && endTime) {
         programStartTime = new Date(parseInt(startTime));
@@ -67,7 +298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('info-channel-logo').src = channelLogo || 'https://placehold.co/100x100/4d648d/FFFFFF?text=' + channelNum;
     document.getElementById('info-channel-num').textContent = channelNum || '000';
     document.getElementById('info-channel-name').textContent = channelName || 'Channel';
-    
     document.getElementById('info-hd').style.display = 'inline-block';
     
     updateClock();
@@ -81,21 +311,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     startPlayback(src, streamType);
     
-    document.getElementById('unmute-message').classList.add('visible');
-    setTimeout(() => {
-        document.getElementById('unmute-message').classList.remove('visible');
-    }, 5000);
+    if (isMuted) {
+        document.getElementById('unmute-message').classList.add('visible');
+        setTimeout(() => {
+            document.getElementById('unmute-message').classList.remove('visible');
+        }, 5000);
+    }
     
-    setTimeout(() => {
-        if (!isPaused) hideOverlays();
-    }, 5000);
+    scheduleHide();
     
-    let mouseMoveTimeout;
     document.addEventListener('mousemove', () => {
         if (!isPaused) {
             showOverlays();
-            clearTimeout(mouseMoveTimeout);
-            mouseMoveTimeout = setTimeout(hideOverlays, 3000);
+            scheduleHide();
         }
     });
     
@@ -111,12 +339,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeMenuWidgets();
 });
 
+function scheduleHide() {
+    clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(() => {
+        if (!isPaused) hideOverlays();
+    }, 3000);
+}
+
 function startPlayback(src, type) {
     const videoEl = document.getElementById('fullscreen-video');
     const youtubeContainer = document.getElementById('youtube-player-iframe-fs');
     const dvrControls = document.getElementById('dvr-controls');
     
-    if (hls) { hls.destroy(); hls = null; }
+    if (hls) { 
+        hls.destroy(); 
+        hls = null; 
+    }
     videoEl.src = '';
     youtubeContainer.innerHTML = '';
     
@@ -125,8 +363,25 @@ function startPlayback(src, type) {
         youtubeContainer.style.display = 'none';
         dvrControls.classList.add('visible');
         
+        videoEl.muted = isMuted;
+        videoEl.volume = 1.0;
+        
         if (Hls.isSupported()) {
-            hls = new Hls();
+            hls = new Hls({
+                maxBufferLength: 30,
+                maxMaxBufferLength: 600,
+                maxBufferSize: 60 * 1000 * 1000,
+                maxBufferHole: 0.5,
+                lowBufferWatchdogPeriod: 0.5,
+                highBufferWatchdogPeriod: 3,
+                nudgeMaxRetry: 10,
+                manifestLoadingTimeOut: 20000,
+                manifestLoadingMaxRetry: 6,
+                levelLoadingTimeOut: 20000,
+                levelLoadingMaxRetry: 6,
+                fragLoadingTimeOut: 40000,
+                fragLoadingMaxRetry: 6
+            });
             hls.loadSource(src);
             hls.attachMedia(videoEl);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -136,7 +391,20 @@ function startPlayback(src, type) {
             hls.on(Hls.Events.ERROR, (event, data) => {
                 console.error('HLS Error:', data);
                 if (data.fatal) {
-                    showError("Playback Error", "Could not load this stream.");
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            console.log('Network error, recovering...');
+                            hls.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            console.log('Media error, recovering...');
+                            hls.recoverMediaError();
+                            break;
+                        default:
+                            showError("Playback Error", "Stream failed");
+                            hls.destroy();
+                            break;
+                    }
                 }
             });
         } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
@@ -146,7 +414,7 @@ function startPlayback(src, type) {
                 updateDVRButtonStates();
             });
         } else {
-            showError("Compatibility Error", "HLS not supported");
+            showError("Error", "HLS not supported");
         }
         
         videoEl.addEventListener('play', () => {
@@ -167,36 +435,25 @@ function startPlayback(src, type) {
         youtubeContainer.style.display = 'block';
         dvrControls.style.display = 'none';
         
-        youtubeContainer.innerHTML = `<iframe 
-            src="https://www.youtube.com/embed/${src}?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" 
-            style="pointer-events: none;"
-            allowfullscreen></iframe>`;
+        const muteParam = isMuted ? 'mute=1' : 'mute=0';
+        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${src}?autoplay=1&${muteParam}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" style="pointer-events: none;" allowfullscreen></iframe>`;
             
     } else if (type === 'twitch') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
         dvrControls.style.display = 'none';
         
-        youtubeContainer.innerHTML = `<iframe 
-            src="https://player.twitch.tv/?channel=${src}&parent=${window.location.hostname}&autoplay=true&muted=true" 
-            frameborder="0" 
-            allow="autoplay; fullscreen" 
-            allowfullscreen></iframe>`;
+        const muteParam = isMuted ? 'true' : 'false';
+        youtubeContainer.innerHTML = `<iframe src="https://player.twitch.tv/?channel=${src}&parent=${window.location.hostname}&autoplay=true&muted=${muteParam}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
             
     } else if (type === 'iframe') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
         dvrControls.style.display = 'none';
         
-        youtubeContainer.innerHTML = `<iframe 
-            src="${src}" 
-            frameborder="0" 
-            allow="autoplay; fullscreen" 
-            allowfullscreen></iframe>`;
+        youtubeContainer.innerHTML = `<iframe src="${src}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
     } else {
-        showError("Unsupported Stream", `Cannot play type: ${type}`);
+        showError("Error", `Cannot play type: ${type}`);
     }
 }
 
@@ -285,8 +542,10 @@ function channelSurf(direction) {
                 }
             }
         } catch (e) {
-            console.warn('Could not load guide data for surfing:', e);
+            console.warn('Guide data unavailable:', e);
         }
+        
+        const wasUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
         
         const params = new URLSearchParams({
             src: newChannel.stream.url,
@@ -297,7 +556,9 @@ function channelSurf(direction) {
             channelName: newChannel.fullName || newChannel.name,
             title: programTitle,
             startTime,
-            endTime
+            endTime,
+            noAnimation: 'true',
+            unmuted: wasUnmuted ? 'true' : 'false'
         });
         window.location.replace(`player.html?${params.toString()}`);
     } else {
@@ -306,15 +567,58 @@ function channelSurf(direction) {
 }
 
 function handleKeyPress(e) {
+    const menu = document.getElementById('side-menu');
+    
+    if (menu.classList.contains('visible')) {
+        if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
+            toggleMenu();
+            return;
+        }
+        
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
+            const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
+            
+            if (e.key === 'ArrowUp') {
+                const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
+                menuButtons[prevIndex].focus();
+            } else {
+                const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
+                menuButtons[nextIndex].focus();
+            }
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            if (document.activeElement.classList.contains('menu-button')) {
+                const params = new URLSearchParams(window.location.search);
+                const channelId = params.get('channelId');
+                if (channelId) {
+                    sessionStorage.setItem('returnFromPlayerChannelId', channelId);
+                }
+                document.activeElement.click();
+            }
+            return;
+        }
+        
+        return;
+    }
+    
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     
     const key = e.key.toLowerCase();
     
     if (key === 'g') {
+        const params = new URLSearchParams(window.location.search);
+        const channelId = params.get('channelId');
+        if (channelId) {
+            sessionStorage.setItem('returnFromPlayerChannelId', channelId);
+        }
+        
         const app = document.getElementById('app-container');
         app.style.animation = 'zoomOut 0.3s ease-in forwards';
         setTimeout(() => {
-            sessionStorage.setItem('returnFromPlayerChannelId', new URLSearchParams(window.location.search).get('channelId'));
             window.location.href = 'index.html';
         }, 300);
     } else if (key === 'm') {
@@ -325,6 +629,8 @@ function handleKeyPress(e) {
             videoElement.muted = !videoElement.muted;
             isMuted = videoElement.muted;
             
+            sessionStorage.setItem('playerUnmuted', !isMuted ? 'true' : 'false');
+            
             if (!isMuted && videoElement.paused) {
                 videoElement.play().catch(err => console.warn('Play failed:', err));
             }
@@ -332,8 +638,6 @@ function handleKeyPress(e) {
             if (!isMuted) {
                 document.getElementById('unmute-message').classList.remove('visible');
             }
-            
-            console.log('Muted:', isMuted, 'Volume:', videoElement.volume);
         }
     } else if (key === 'arrowup') {
         e.preventDefault();
@@ -358,6 +662,24 @@ function handleKeyPress(e) {
     }
 }
 
+function toggleMenu() {
+    const appContainer = document.getElementById('app-container');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const sideMenu = document.getElementById('side-menu');
+    const isOpening = !sideMenu.classList.contains('visible');
+    
+    if (appContainer) appContainer.classList.toggle('blurred');
+    if (menuOverlay) menuOverlay.classList.toggle('visible');
+    if (sideMenu) sideMenu.classList.toggle('visible');
+    
+    if (isOpening) {
+        setTimeout(() => {
+            const firstMenuItem = sideMenu.querySelector('.menu-button');
+            if (firstMenuItem) firstMenuItem.focus();
+        }, 100);
+    }
+}
+
 const style = document.createElement('style');
 style.textContent = `
     @keyframes zoomOut {
@@ -371,24 +693,7 @@ style.textContent = `
         }
     }
 `;
-document.head.appendChild(style);'arrowdown'
-        e.preventDefault();
-        channelSurf(1);
-    if (key === 'p') {
-        alert('🚀 Portal (Watch Together) coming soon!');
-    } else if (key === ' ' || key === 'spacebar') {
-        e.preventDefault();
-        togglePlayPause();
-    } else if (key === 'arrowleft') {
-        e.preventDefault();
-        seekRelative(-10);
-    } else if (key === 'arrowright') {
-        e.preventDefault();
-        seekRelative(10);
-    } else if (key === 'i') {
-        e.preventDefault();
-        toggleInfoBar();
-    }
+document.head.appendChild(style);
 
 function showOverlays() {
     document.getElementById('info-bar').classList.add('visible');
@@ -472,7 +777,7 @@ async function initializeMenuWidgets() {
     try {
         localConfig = window.iCableConfig.get();
     } catch(e) {
-        console.error("Could not load config for menu widgets");
+        console.error("Could not load config");
         widgetContainer.style.display = 'none';
         return;
     }
@@ -494,7 +799,8 @@ async function initializeMenuWidgets() {
     if (slides.length === 0) {
         widgetContainer.style.display = 'none';
         return;
-    };
+    }
+    
     widgetContainer.style.display = 'block';
     let currentSlide = 0;
 
@@ -511,7 +817,7 @@ async function initializeMenuWidgets() {
     }
 
     if (slides.length > 1) {
-         const intervalId = setInterval(() => {
+         setInterval(() => {
              currentSlide = (currentSlide + 1) % slides.length;
              showSlide(currentSlide);
          }, 10000);
@@ -526,10 +832,11 @@ async function fetchHourlyForecastPlayer(coords, apiKey) {
 
     const { latitude, longitude } = coords;
     const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=imperial&cnt=4`;
+    
     try {
         const res = await fetch(url);
-        if (res.status === 401) throw new Error("Unauthorized(401). Check OpenWeather API key and plan support.");
-        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+        if (res.status === 401) throw new Error("Unauthorized");
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
         const data = await res.json();
 
         container.innerHTML = '';
@@ -544,7 +851,7 @@ async function fetchHourlyForecastPlayer(coords, apiKey) {
                 </div>`;
         });
     } catch (err) {
-         console.error("Hourly forecast error on player page:", err.message);
+         console.error("Forecast error:", err.message);
          container.innerHTML = '<p style="font-size: 0.8em; text-align: center; margin-top: 1rem;">Forecast unavailable.</p>';
     }
 }
