@@ -64,11 +64,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncScrollbars();
     setupPlayerControls();
 
-    const resumeChannelId = sessionStorage.getItem('returnFromPlayerChannelId');
+    const resumeChannelId = sessionStorage.getItem('returnFromPlayerChannelId') || sessionStorage.getItem('lastWatchedChannel');
+    const lastStreamStr = sessionStorage.getItem('lastStream');
+    
     if (resumeChannelId && guideData.channels.length > 0) {
         const channelToResume = guideData.channels.find(ch => ch.id === resumeChannelId);
+        
         if (channelToResume && channelToResume.stream) {
-            loadStream(channelToResume);
+            const wasUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
+            
+            const cIndex = guideData.channels.findIndex(ch => ch.id === resumeChannelId);
+            if (cIndex !== -1) {
+                const pIndex = findLiveProgramIndex(cIndex);
+                if (pIndex !== -1) {
+                    selectProgram(cIndex, pIndex);
+                    
+                    setTimeout(() => {
+                        const selectedBlock = document.querySelector('.program-block.selected');
+                        if (selectedBlock) {
+                            selectedBlock.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+                        }
+                    }, 500);
+                }
+            }
+            
+            loadStream(channelToResume, !wasUnmuted);
         }
         sessionStorage.removeItem('returnFromPlayerChannelId');
     }
@@ -580,6 +600,27 @@ function setupPlayerControls() {
     video.addEventListener('play', () => wrapper.classList.remove('paused'));
     video.addEventListener('pause', () => wrapper.classList.add('paused'));
 
+    video.addEventListener('click', () => {
+        if (currentStreamInfo.channelId) {
+            const currentlyUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
+            const newMuteState = currentlyUnmuted;
+            
+            sessionStorage.setItem('playerUnmuted', newMuteState ? 'false' : 'true');
+            
+            if (currentStreamInfo.type === 'hls' && video.src) {
+                video.muted = !video.muted;
+                console.log('HLS clicked. Muted:', video.muted);
+            }
+            else if (currentStreamInfo.type === 'youtube' || currentStreamInfo.type === 'twitch' || currentStreamInfo.type === 'iframe') {
+                const channel = guideData.channels.find(ch => ch.id === currentStreamInfo.channelId);
+                if (channel) {
+                    console.log('Reloading embedded stream with new mute state. Unmuted:', !newMuteState);
+                    loadStream(channel, false);
+                }
+            }
+        }
+    });
+
     fullscreenBtn.addEventListener('click', () => {
          if (!currentStreamInfo.channelId) return;
          const program = programsByChannel[currentStreamInfo.cIndex]?.[currentStreamInfo.pIndex];
@@ -594,13 +635,15 @@ function setupPlayerControls() {
              channelId: channel.id,
              channelLogo: channel.logo || '',
              channelNum: channel.number || '',
-             channelName: channel.name || ''
+             channelName: channel.name || '',
+             startTime: program.start.getTime().toString(),
+             endTime: program.stop.getTime().toString()
          });
          window.location.href = `player.html?${params.toString()}`;
     });
 }
 
-function loadStream(channel) {
+function loadStream(channel, shouldMute = false) {
     if (!channel || !channel.stream || !channel.stream.url) {
         console.warn("No stream URL found for channel", channel?.id);
         stopMiniPlayer();
@@ -617,6 +660,8 @@ function loadStream(channel) {
         url: channel.stream.url, 
         type: channel.stream.type 
     };
+    
+    sessionStorage.setItem('lastWatchedChannel', channel.id);
 
     const playerContainer = document.getElementById('mini-player-container');
     const videoEl = document.getElementById('mini-player-video');
@@ -628,6 +673,9 @@ function loadStream(channel) {
     let streamUrl = channel.stream.url;
     let streamType = channel.stream.type;
 
+    const userUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
+    const finalMuteState = userUnmuted ? false : shouldMute;
+
     if (streamType === 'youtube') {
          streamUrl = channel.stream.url; 
     }
@@ -635,11 +683,28 @@ function loadStream(channel) {
     if (streamType === 'hls') {
         videoEl.style.display = 'block';
         youtubeContainer.style.display = 'none';
+        
+        videoEl.muted = finalMuteState;
+        
         if (Hls.isSupported()) {
-            hlsInstance = new Hls();
+            hlsInstance = new Hls({
+                autoStartLoad: true,
+                startPosition: -1,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 600
+            });
             hlsInstance.loadSource(streamUrl);
             hlsInstance.attachMedia(videoEl);
-            hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play().catch(e => console.warn("Autoplay prevented:", e)));
+            hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => {
+                        console.warn("Autoplay prevented:", e);
+                        videoEl.muted = true;
+                        videoEl.play().catch(err => console.warn("Still prevented:", err));
+                    });
+                }
+            });
             hlsInstance.on(Hls.Events.ERROR, (event, data) => {
                  console.error('HLS Error:', data);
                  if (data.fatal) {
@@ -649,7 +714,16 @@ function loadStream(channel) {
             });
         } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
             videoEl.src = streamUrl;
-            videoEl.addEventListener('loadedmetadata', () => videoEl.play().catch(e => console.warn("Autoplay prevented:", e)));
+            videoEl.addEventListener('loadedmetadata', () => {
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => {
+                        console.warn("Autoplay prevented:", e);
+                        videoEl.muted = true;
+                        videoEl.play().catch(err => console.warn("Still prevented:", err));
+                    });
+                }
+            });
              videoEl.addEventListener('error', (e) => {
                  console.error('Native HLS Error:', e);
                  stopMiniPlayer();
@@ -662,11 +736,13 @@ function loadStream(channel) {
     } else if (streamType === 'youtube') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
-        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${streamUrl}?autoplay=1&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        const muteParam = finalMuteState ? 'mute=1' : 'mute=0';
+        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${streamUrl}?autoplay=1&${muteParam}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
     } else if (streamType === 'twitch') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
-        youtubeContainer.innerHTML = `<iframe src="https://player.twitch.tv/?channel=${streamUrl}&parent=${window.location.hostname}&autoplay=true" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width: 100%; height: 100%;"></iframe>`;
+        const muteParam = finalMuteState ? 'true' : 'false';
+        youtubeContainer.innerHTML = `<iframe src="https://player.twitch.tv/?channel=${streamUrl}&parent=${window.location.hostname}&autoplay=true&muted=${muteParam}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width: 100%; height: 100%;"></iframe>`;
     } else if (streamType === 'iframe') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
@@ -708,7 +784,7 @@ function handleProgramClick(cIndex, pIndex, forceTune = false) {
      if (isLive || forceTune) {
          if (channel.stream && channel.stream.url) {
              const appContainer = document.getElementById('app-container');
-             appContainer.style.animation = 'zoomOut 0.3s ease-in forwards';
+             appContainer.style.animation = 'zoomOut 0.4s ease-in forwards';
              
              setTimeout(() => {
                  const params = new URLSearchParams({
@@ -798,15 +874,74 @@ function selectProgram(cIndex, pIndex) {
 
 function handleKeyPress(e) {
     const menu = document.getElementById('side-menu');
-    if (e.key.toLowerCase() === 'm') {
-        toggleMenu();
+    
+    if (menu.classList.contains('visible')) {
+        if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
+            e.preventDefault();
+            toggleMenu();
+            return;
+        }
+        
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
+            const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
+            
+            if (e.key === 'ArrowUp') {
+                const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
+                menuButtons[prevIndex].focus();
+            } else {
+                const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
+                menuButtons[nextIndex].focus();
+            }
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (document.activeElement.classList.contains('menu-button')) {
+                document.activeElement.click();
+            }
+            return;
+        }
+        
         return;
     }
     
-    if (menu.classList.contains('visible')) return; 
+    if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleMenu();
+        return;
+    }
 
     if (e.ctrlKey && e.key.toLowerCase() === 'f') {
         return;
+    }
+
+    if (e.key === 'Shift' && !e.repeat) {
+        e.preventDefault();
+        const video = document.getElementById('mini-player-video');
+        const youtubeContainer = document.getElementById('youtube-player-iframe');
+        
+        if (currentStreamInfo.channelId) {
+            const currentlyUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
+            const newMuteState = currentlyUnmuted;
+            
+            sessionStorage.setItem('playerUnmuted', newMuteState ? 'false' : 'true');
+            
+            if (currentStreamInfo.type === 'hls' && video.src) {
+                video.muted = !video.muted;
+                console.log('HLS miniplayer toggled. Muted:', video.muted);
+            } 
+            else if (currentStreamInfo.type === 'youtube' || currentStreamInfo.type === 'twitch' || currentStreamInfo.type === 'iframe') {
+                const channel = guideData.channels.find(ch => ch.id === currentStreamInfo.channelId);
+                if (channel) {
+                    console.log('Reloading embedded stream with new mute state. Unmuted:', !newMuteState);
+                    loadStream(channel, false);
+                }
+            }
+            return;
+        }
     }
 
     e.preventDefault();
@@ -861,9 +996,18 @@ function toggleMenu() {
     const appContainer = document.getElementById('app-container');
     const menuOverlay = document.getElementById('menu-overlay');
     const sideMenu = document.getElementById('side-menu');
+    const isOpening = !sideMenu.classList.contains('visible');
+    
     appContainer.classList.toggle('blurred');
     menuOverlay.classList.toggle('visible');
     sideMenu.classList.toggle('visible');
+    
+    if (isOpening) {
+        setTimeout(() => {
+            const firstMenuItem = sideMenu.querySelector('.menu-button');
+            if (firstMenuItem) firstMenuItem.focus();
+        }, 100);
+    }
 }
 
 function updateTime() {
@@ -933,11 +1077,22 @@ async function fetchHourlyForecast() {
         data.list.slice(0, 4).forEach(item => { 
             const date = new Date(item.dt * 1000);
             const icon = item.weather[0].icon;
+            const condition = item.weather[0].main.toLowerCase();
+            
+            let bgColor = '#4a90e2';
+            if (condition.includes('clear')) bgColor = '#f39c12';
+            else if (condition.includes('cloud')) bgColor = '#95a5a6';
+            else if (condition.includes('rain')) bgColor = '#3498db';
+            else if (condition.includes('thunder')) bgColor = '#9b59b6';
+            else if (condition.includes('snow')) bgColor = '#ecf0f1';
+            else if (condition.includes('mist') || condition.includes('fog')) bgColor = '#bdc3c7';
+            
             container.innerHTML += `
-                <div class="forecast-item">
-                    <div>${date.toLocaleTimeString([], {hour: 'numeric'})}</div>
-                    <img src="https://openweathermap.org/img/wn/${icon}.png" alt="${item.weather[0].description}">
-                    <div>${Math.round(item.main.temp)}°F</div>
+                <div class="forecast-item" style="background: ${bgColor};">
+                    <div style="font-weight: bold;">${date.toLocaleTimeString([], {hour: 'numeric'})}</div>
+                    <img src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${item.weather[0].description}" style="width: 50px; height: 50px;">
+                    <div style="font-size: 1.1em; font-weight: bold;">${Math.round(item.main.temp)}°F</div>
+                    <div style="font-size: 0.8em; opacity: 0.9; text-transform: capitalize;">${item.weather[0].description}</div>
                 </div>`;
         });
     } catch (err) {
@@ -962,11 +1117,32 @@ function buildRecommendationWidget() {
     
     if (upcoming.length > 0) {
         const randomRec = upcoming[Math.floor(Math.random() * upcoming.length)];
-        container.innerHTML = `
-            <p class="rec-show-title">${randomRec.program.title}</p>
-            <p class="rec-show-channel">On ${randomRec.channel.name} at ${randomRec.program.start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}</p>`;
+        
+        getPosterUrl(randomRec.program.title).then(posterUrl => {
+            const isPlaceholder = posterUrl.includes('placehold.co');
+            
+            if (isPlaceholder) {
+                container.innerHTML = `
+                    <div class="rec-backdrop" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);"></div>
+                    <div class="rec-overlay">
+                        <p class="rec-show-title">${randomRec.program.title}</p>
+                        <p class="rec-show-time">${randomRec.program.start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}</p>
+                        <p class="rec-show-channel">${randomRec.channel.name} ${randomRec.channel.number}</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="rec-backdrop" style="background-image: url('${posterUrl}');"></div>
+                    <div class="rec-overlay">
+                        <p class="rec-show-title">${randomRec.program.title}</p>
+                        <p class="rec-show-time">${randomRec.program.start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}</p>
+                        <p class="rec-show-channel">${randomRec.channel.name} ${randomRec.channel.number}</p>
+                    </div>
+                `;
+            }
+        });
     } else {
-         container.innerHTML = `<p>No upcoming shows found.</p>`;
+         container.innerHTML = `<p style="padding: 2rem; text-align: center;">No upcoming shows found.</p>`;
     }
 }
 
