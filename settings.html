@@ -264,11 +264,9 @@
 </head>
 <body>
     <div id="settings-container">
-        <a href="index.html" class="back-link">← Back to Guide</a>
-        
         <div class="settings-header">
             <h1>Settings</h1>
-            <p>Customize your iCable experience</p>
+            <p>Customize your iCable experience • Press M for menu</p>
         </div>
         
         <div class="settings-tabs">
@@ -513,6 +511,7 @@
     </div>
     
     <script src="scripts/config-manager.js"></script>
+    <script src="scripts/menu-widgets.js"></script>
     <script>
         let config = {};
         
@@ -788,7 +787,87 @@
             }
         }
         
-        window.addEventListener('load', loadSettings);
+         window.addEventListener('DOMContentLoaded', () => {
+        const cfg = window.iCableConfig.get();
+        
+        if (cfg.appearance?.enableWeather) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                window.MenuWidgets.init(cfg, pos.coords);
+            }, () => {
+                window.MenuWidgets.init(cfg);
+            });
+        } else {
+            window.MenuWidgets.init(cfg);
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        const menu = document.getElementById('side-menu');
+        
+        if (menu && menu.classList.contains('visible')) {
+            if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
+                e.preventDefault();
+                toggleMenu();
+                return;
+            }
+            
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
+                const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
+                
+                if (e.key === 'ArrowUp') {
+                    const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
+                    menuButtons[prevIndex].focus();
+                } else {
+                    const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
+                    menuButtons[nextIndex].focus();
+                }
+                return;
+            }
+            
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (document.activeElement.classList.contains('menu-button')) {
+                    document.activeElement.click();
+                }
+                return;
+            }
+            return;
+        }
+        
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        if (e.key.toLowerCase() === 'm') {
+            e.preventDefault();
+            toggleMenu();
+        }
+    });
+
+    function toggleMenu() {
+        const appContainer = document.getElementById('settings-container');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const sideMenu = document.getElementById('side-menu');
+        const isOpening = !sideMenu.classList.contains('visible');
+        
+        if (appContainer) appContainer.classList.toggle('blurred');
+        if (menuOverlay) menuOverlay.classList.toggle('visible');
+        if (sideMenu) sideMenu.classList.toggle('visible');
+        
+        if (isOpening) {
+            setTimeout(() => {
+                const firstMenuItem = sideMenu.querySelector('.menu-button');
+                if (firstMenuItem) firstMenuItem.focus();
+            }, 100);
+        }
+    }
+
+    const menuOverlay = document.getElementById('menu-overlay');
+    if (menuOverlay) {
+        menuOverlay.addEventListener('click', toggleMenu);
+    }
+
+    window.addEventListener('load', loadSettings);
     </script>
 </body>
 </html>
