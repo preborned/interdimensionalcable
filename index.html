@@ -20,7 +20,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iCable - Your TV Guide</title>
+    <title>icable-development</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         @keyframes zoomIn {
@@ -45,10 +45,26 @@
             }
         }
         
+        #current-program-details {
+            min-height: auto;
+            display: grid;
+            grid-template-columns: auto 1fr minmax(280px, 400px);
+            gap: 1.5rem;
+            align-items: start;
+            padding: 1.5rem;
+        }
+        
         #mini-player-container {
             aspect-ratio: 16 / 9;
             width: 100%;
             height: auto;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            align-self: center;
         }
         
         #mini-player-video,
@@ -56,6 +72,31 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            cursor: pointer;
+        }
+        
+        #player-ui-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .widget-slide {
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+    
+        
+        @media (max-width: 1200px) {
+            #current-program-details {
+                grid-template-columns: 1fr;
+            }
+            
+            #mini-player-container {
+                width: 100%;
+                max-width: 600px;
+                margin: 0 auto;
+            }
         }
     </style>
 </head>
@@ -139,5 +180,6 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="scripts/config-manager.js"></script>
     <script src="scripts/main.js"></script>
+    <script src="scripts/menu-widgets.js"></script>
 </body>
 </html>
