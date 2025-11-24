@@ -26,14 +26,10 @@ let hlsInstance = null;
 let currentStreamInfo = {};
 let errorSound = null;
 
-const sampleXmlTvData = `
-<tv>
-</tv>
-`;
+const sampleXmlTvData = `<tv></tv>`;
 
 document.addEventListener('DOMContentLoaded', async () => {
     CONFIG = window.iCableConfig.get();
-    
     errorSound = document.getElementById('error-sound');
     
     try {
@@ -64,34 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncScrollbars();
     setupPlayerControls();
 
-    const resumeChannelId = sessionStorage.getItem('returnFromPlayerChannelId') || sessionStorage.getItem('lastWatchedChannel');
-    const lastStreamStr = sessionStorage.getItem('lastStream');
-    
-    if (resumeChannelId && guideData.channels.length > 0) {
-        const channelToResume = guideData.channels.find(ch => ch.id === resumeChannelId);
-        
-        if (channelToResume && channelToResume.stream) {
-            const wasUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
-            
-            const cIndex = guideData.channels.findIndex(ch => ch.id === resumeChannelId);
-            if (cIndex !== -1) {
-                const pIndex = findLiveProgramIndex(cIndex);
-                if (pIndex !== -1) {
-                    selectProgram(cIndex, pIndex);
-                    
-                    setTimeout(() => {
-                        const selectedBlock = document.querySelector('.program-block.selected');
-                        if (selectedBlock) {
-                            selectedBlock.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-                        }
-                    }, 500);
-                }
-            }
-            
-            loadStream(channelToResume, !wasUnmuted);
-        }
-        sessionStorage.removeItem('returnFromPlayerChannelId');
-    }
+    setTimeout(checkPersistentMiniplayer, 500);
 
     const menuOverlay = document.getElementById('menu-overlay');
     if (menuOverlay) {
@@ -182,8 +151,6 @@ async function fetchGuideData() {
         } catch (error) { console.warn(error.message); }
     }
     
-    console.error('All data sources failed. Loading sample XML data.');
-    displayInitialMessage('Info', 'No guide data configured. Using demo data. Add sources in Settings.');
     return { data: sampleXmlTvData, format: 'xml' };
 }
 
@@ -249,10 +216,14 @@ function initializeGuide(parsedData, m3uStreams) {
     guideStartTime.setHours(guideStartTime.getHours() - 3);
     guideStartTime.setMinutes(0, 0, 0);
     renderGuide();
-    selectInitialProgram();
+    selectInitialProgram(); 
     setupDynamicUpdates();
     startWidgetSlideshow();
     startMessageBox();
+    
+    setTimeout(() => {
+        checkPersistentMiniplayer();
+    }, 500);
 }
 
 function setupDynamicUpdates() {
@@ -342,7 +313,6 @@ function mergeAndSortData({ channels, programmes }, m3uStreams = {}) {
     CONFIG.customChannels.forEach(customChannel => {
         if (customChannel.epg && customChannel.epg.length > 0) {
             let currentTime = new Date(past);
-            const totalDuration = customChannel.epg.reduce((sum, block) => sum + block.duration, 0);
             
             while (currentTime < future) {
                 customChannel.epg.forEach(block => {
@@ -492,6 +462,8 @@ function renderGuide() {
     const initialScrollPx = Math.max(0, (nowOffsetMinutes - viewCenterMinutes) * pxPerMinute);
     gridContainer.scrollLeft = initialScrollPx;
     updateVisibleTitles(initialScrollPx);
+    
+    setTimeout(selectInitialProgram, 50);
 }
 
 function updateVisibleTitles(scrollLeft) {
@@ -592,6 +564,15 @@ function setupPlayerControls() {
     video.addEventListener('timeupdate', () => {
         if(video.duration && !isNaN(video.duration)) {
             progressFilled.style.width = `${(video.currentTime / video.duration) * 100}%`;
+            
+            const persistentStream = sessionStorage.getItem('persistentMiniplayer');
+            if (persistentStream) {
+                try {
+                    const streamInfo = JSON.parse(persistentStream);
+                    streamInfo.progress = video.currentTime;
+                    sessionStorage.setItem('persistentMiniplayer', JSON.stringify(streamInfo));
+                } catch(e) { console.warn("Error saving progress:", e); }
+            }
         } else {
              progressFilled.style.width = `0%`;
         }
@@ -601,155 +582,93 @@ function setupPlayerControls() {
     video.addEventListener('pause', () => wrapper.classList.add('paused'));
 
     video.addEventListener('click', () => {
-        if (currentStreamInfo.channelId) {
-            const currentlyUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
-            const newMuteState = currentlyUnmuted;
-            
-            sessionStorage.setItem('playerUnmuted', newMuteState ? 'false' : 'true');
+        if (currentStreamInfo.source) {
+            const currentlyUnmuted = sessionStorage.getItem('miniplayerUnmuted') === 'true';
+            sessionStorage.setItem('miniplayerUnmuted', currentlyUnmuted ? 'false' : 'true');
             
             if (currentStreamInfo.type === 'hls' && video.src) {
                 video.muted = !video.muted;
-                console.log('HLS clicked. Muted:', video.muted);
-            }
-            else if (currentStreamInfo.type === 'youtube' || currentStreamInfo.type === 'twitch' || currentStreamInfo.type === 'iframe') {
-                const channel = guideData.channels.find(ch => ch.id === currentStreamInfo.channelId);
-                if (channel) {
-                    console.log('Reloading embedded stream with new mute state. Unmuted:', !newMuteState);
-                    loadStream(channel, false);
-                }
+            } else {
+                loadPersistentStream(currentStreamInfo);
             }
         }
     });
 
     fullscreenBtn.addEventListener('click', () => {
-         if (!currentStreamInfo.channelId) return;
-         const program = programsByChannel[currentStreamInfo.cIndex]?.[currentStreamInfo.pIndex];
-         const channel = guideData.channels[currentStreamInfo.cIndex];
-         if (!program || !channel) return;
+         if (!currentStreamInfo.source) return;
          
-         const params = new URLSearchParams({
-             src: currentStreamInfo.url,
-             type: currentStreamInfo.type,
-             title: program.title,
-             desc: program.desc,
-             channelId: channel.id,
-             channelLogo: channel.logo || '',
-             channelNum: channel.number || '',
-             channelName: channel.name || '',
-             startTime: program.start.getTime().toString(),
-             endTime: program.stop.getTime().toString()
-         });
-         window.location.href = `player.html?${params.toString()}`;
+         sessionStorage.setItem('playerData', JSON.stringify(currentStreamInfo));
+         window.location.href = 'player.html';
     });
 }
 
-function loadStream(channel, shouldMute = false) {
-    if (!channel || !channel.stream || !channel.stream.url) {
-        console.warn("No stream URL found for channel", channel?.id);
-        stopMiniPlayer();
-        return;
+function checkPersistentMiniplayer() {
+    const persistentStream = sessionStorage.getItem('persistentMiniplayer');
+    if (persistentStream) {
+        try {
+            const streamInfo = JSON.parse(persistentStream);
+            loadPersistentStream(streamInfo);
+        } catch (e) { console.warn('Miniplayer resume failed:', e); }
     }
+}
 
-     const cIndex = guideData.channels.findIndex(ch => ch.id === channel.id);
-     const pIndex = findLiveProgramIndex(cIndex);
-
-    currentStreamInfo = { 
-        channelId: channel.id, 
-        cIndex: cIndex,
-        pIndex: pIndex, 
-        url: channel.stream.url, 
-        type: channel.stream.type 
-    };
-    
-    sessionStorage.setItem('lastWatchedChannel', channel.id);
-
+function loadPersistentStream(streamInfo) {
     const playerContainer = document.getElementById('mini-player-container');
     const videoEl = document.getElementById('mini-player-video');
     const youtubeContainer = document.getElementById('youtube-player-iframe');
     
-    stopMiniPlayer(); 
-
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    
+    currentStreamInfo = streamInfo;
     playerContainer.classList.add('active');
-    let streamUrl = channel.stream.url;
-    let streamType = channel.stream.type;
-
-    const userUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
-    const finalMuteState = userUnmuted ? false : shouldMute;
-
-    if (streamType === 'youtube') {
-         streamUrl = channel.stream.url; 
-    }
-
-    if (streamType === 'hls') {
+    
+    const finalMuteState = !(sessionStorage.getItem('miniplayerUnmuted') === 'true');
+    
+    if (streamInfo.type === 'hls') {
         videoEl.style.display = 'block';
         youtubeContainer.style.display = 'none';
-        
         videoEl.muted = finalMuteState;
         
         if (Hls.isSupported()) {
-            hlsInstance = new Hls({
-                autoStartLoad: true,
-                startPosition: -1,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 600
-            });
-            hlsInstance.loadSource(streamUrl);
+            hlsInstance = new Hls({ debug: false });
+            hlsInstance.loadSource(streamInfo.url);
             hlsInstance.attachMedia(videoEl);
+            
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                const playPromise = videoEl.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(e => {
-                        console.warn("Autoplay prevented:", e);
-                        videoEl.muted = true;
-                        videoEl.play().catch(err => console.warn("Still prevented:", err));
-                    });
+                if (streamInfo.progress && streamInfo.progress > 0) {
+                    videoEl.currentTime = streamInfo.progress;
                 }
-            });
-            hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-                 console.error('HLS Error:', data);
-                 if (data.fatal) {
-                      stopMiniPlayer();
-                      displayInitialMessage('Playback Error', `Could not load stream for ${channel.name}.`);
-                 }
+                videoEl.play().catch(() => {});
             });
         } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-            videoEl.src = streamUrl;
+            videoEl.src = streamInfo.url;
             videoEl.addEventListener('loadedmetadata', () => {
-                const playPromise = videoEl.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(e => {
-                        console.warn("Autoplay prevented:", e);
-                        videoEl.muted = true;
-                        videoEl.play().catch(err => console.warn("Still prevented:", err));
-                    });
+                if (streamInfo.progress && streamInfo.progress > 0) {
+                    videoEl.currentTime = streamInfo.progress;
                 }
+                videoEl.play().catch(() => {});
             });
-             videoEl.addEventListener('error', (e) => {
-                 console.error('Native HLS Error:', e);
-                 stopMiniPlayer();
-                 displayInitialMessage('Playback Error', `Could not load stream for ${channel.name}.`);
-             });
-        } else {
-             console.error("HLS not supported by this browser.");
-             stopMiniPlayer();
         }
-    } else if (streamType === 'youtube') {
+        
+        videoEl.addEventListener('timeupdate', () => {
+            if (!videoEl.paused) {
+                streamInfo.progress = videoEl.currentTime;
+                sessionStorage.setItem('persistentMiniplayer', JSON.stringify(streamInfo));
+            }
+        });
+        
+    } else if (streamInfo.type === 'youtube') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
-        const muteParam = finalMuteState ? 'mute=1' : 'mute=0';
-        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${streamUrl}?autoplay=1&${muteParam}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-    } else if (streamType === 'twitch') {
+        const muteParam = finalMuteState ? '1' : '0';
+        const startParam = streamInfo.progress ? `&start=${Math.floor(streamInfo.progress)}` : '';
+        youtubeContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${streamInfo.url}?autoplay=1&mute=${muteParam}&controls=0${startParam}" frameborder="0" allowfullscreen></iframe>`;
+    } else if (streamInfo.type === 'twitch') {
         videoEl.style.display = 'none';
         youtubeContainer.style.display = 'block';
         const muteParam = finalMuteState ? 'true' : 'false';
-        youtubeContainer.innerHTML = `<iframe src="https://player.twitch.tv/?channel=${streamUrl}&parent=${window.location.hostname}&autoplay=true&muted=${muteParam}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width: 100%; height: 100%;"></iframe>`;
-    } else if (streamType === 'iframe') {
-        videoEl.style.display = 'none';
-        youtubeContainer.style.display = 'block';
-        youtubeContainer.innerHTML = `<iframe src="${streamUrl}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="width: 100%; height: 100%;"></iframe>`;
-    } else {
-        console.warn("Unsupported stream type:", streamType);
-        stopMiniPlayer();
+        const parent = window.location.hostname;
+        youtubeContainer.innerHTML = `<iframe src="https://player.twitch.tv/?channel=${streamInfo.url}&parent=${parent}&autoplay=true&muted=${muteParam}" frameborder="0" allowfullscreen></iframe>`;
     }
 }
 
@@ -768,7 +687,6 @@ function stopMiniPlayer() {
     videoEl.load();
     youtubeContainer.innerHTML = '';
     playerContainer.classList.remove('active');
-    currentStreamInfo = {}; 
 }
 
 function handleProgramClick(cIndex, pIndex, forceTune = false) {
@@ -783,23 +701,28 @@ function handleProgramClick(cIndex, pIndex, forceTune = false) {
 
      if (isLive || forceTune) {
          if (channel.stream && channel.stream.url) {
+             const streamInfo = {
+                 source: 'live',
+                 type: channel.stream.type,
+                 url: channel.stream.url,
+                 title: program.title,
+                 desc: program.desc,
+                 channelId: channel.id,
+                 channelLogo: channel.logo || '',
+                 channelNum: channel.number || '',
+                 channelName: channel.name || '',
+                 startTime: program.start.getTime().toString(),
+                 endTime: program.stop.getTime().toString()
+             };
+             
+             sessionStorage.setItem('persistentMiniplayer', JSON.stringify(streamInfo));
+             sessionStorage.setItem('playerData', JSON.stringify(streamInfo));
+             
              const appContainer = document.getElementById('app-container');
              appContainer.style.animation = 'zoomOut 0.4s ease-in forwards';
              
              setTimeout(() => {
-                 const params = new URLSearchParams({
-                     src: channel.stream.url,
-                     type: channel.stream.type,
-                     title: program.title,
-                     desc: program.desc,
-                     channelId: channel.id,
-                     channelLogo: channel.logo || '',
-                     channelNum: channel.number || '',
-                     channelName: channel.name || '',
-                     startTime: program.start.getTime().toString(),
-                     endTime: program.stop.getTime().toString()
-                 });
-                 window.location.href = `player.html?${params.toString()}`;
+                 window.location.href = 'player.html';
              }, 300);
          } else {
              console.warn("No stream found for this live channel:", channel.id);
@@ -825,17 +748,101 @@ function findLiveProgramIndex(channelIndex) {
 
 function selectInitialProgram() {
     const now = new Date();
-    for (let c = 0; c < programsByChannel.length; c++) {
-        const startIndex = programsByChannel[c].findIndex(p => p.stop > now);
-        if (startIndex !== -1) {
-            selectProgram(c, startIndex); 
+    
+    try {
+        const persistentData = sessionStorage.getItem('persistentMiniplayer');
+        if (persistentData) {
+            const streamInfo = JSON.parse(persistentData);
+            if (streamInfo && streamInfo.source === 'ondemand') {
+                loadPersistentStream(streamInfo);
+                
+                if (programsByChannel.length > 0 && programsByChannel[0].length > 0) {
+                    selectProgram(0, 0); 
+                }
+                return;
+            }
+        }
+    } catch (e) {}
+
+    const savedChannel = sessionStorage.getItem('lastSelectedChannel');
+    const savedProgram = sessionStorage.getItem('lastSelectedProgram');
+    
+    if (savedChannel !== null && savedProgram !== null) {
+        const cIndex = parseInt(savedChannel);
+        const pIndex = parseInt(savedProgram);
+        
+        if (programsByChannel[cIndex] && programsByChannel[cIndex][pIndex]) {
+            selectProgram(cIndex, pIndex);
+            
+            setTimeout(() => {
+                const targetBlock = document.querySelector(`.program-block[data-c-index='${cIndex}'][data-p-index='${pIndex}']`);
+                if (targetBlock) {
+                    const gridContainer = document.getElementById('program-grid-container');
+                    const containerRect = gridContainer.getBoundingClientRect();
+                    const targetScrollLeft = targetBlock.offsetLeft - (containerRect.width / 2) + (targetBlock.offsetWidth / 2);
+                    gridContainer.scrollLeft = Math.max(0, targetScrollLeft);
+                }
+            }, 100);
+            
+            const program = programsByChannel[cIndex][pIndex];
+            const channel = guideData.channels[cIndex];
+            if (program && channel && program.start <= now && program.stop > now && channel.stream && channel.stream.url) {
+                loadPersistentStream({
+                    source: 'live',
+                    type: channel.stream.type,
+                    url: channel.stream.url,
+                    title: program.title,
+                    desc: program.desc,
+                    channelId: channel.id,
+                    channelLogo: channel.logo || '',
+                    channelNum: channel.number || '',
+                    channelName: channel.name || '',
+                    startTime: program.start.getTime().toString(),
+                    endTime: program.stop.getTime().toString()
+                });
+            }
             return;
         }
     }
+    
+    for (let c = 0; c < programsByChannel.length; c++) {
+        const liveIndex = programsByChannel[c].findIndex(p => p.start <= now && p.stop > now);
+        if (liveIndex !== -1) {
+            const channel = guideData.channels[c];
+            if (channel.stream && channel.stream.url) {
+                selectProgram(c, liveIndex);
+                
+                setTimeout(() => {
+                    const targetBlock = document.querySelector(`.program-block[data-c-index='${c}'][data-p-index='${liveIndex}']`);
+                    if (targetBlock) {
+                        const gridContainer = document.getElementById('program-grid-container');
+                        const containerRect = gridContainer.getBoundingClientRect();
+                        const targetScrollLeft = targetBlock.offsetLeft - (containerRect.width / 2) + (targetBlock.offsetWidth / 2);
+                        gridContainer.scrollLeft = Math.max(0, targetScrollLeft);
+                    }
+                }, 100);
+                
+                const program = programsByChannel[c][liveIndex];
+                loadPersistentStream({
+                    source: 'live',
+                    type: channel.stream.type,
+                    url: channel.stream.url,
+                    title: program.title,
+                    desc: program.desc,
+                    channelId: channel.id,
+                    channelLogo: channel.logo || '',
+                    channelNum: channel.number || '',
+                    channelName: channel.name || '',
+                    startTime: program.start.getTime().toString(),
+                    endTime: program.stop.getTime().toString()
+                });
+                return;
+            }
+        }
+    }
+    
     if (programsByChannel.length > 0 && programsByChannel[0].length > 0) {
         selectProgram(0, 0);
-    } else {
-         displayInitialMessage("No Programs Found", "Could not load any program data.");
     }
 }
 
@@ -847,6 +854,9 @@ function selectProgram(cIndex, pIndex) {
 
     selectedChannelIndex = cIndex;
     selectedProgramIndex = pIndex;
+    
+    sessionStorage.setItem('lastSelectedChannel', cIndex.toString());
+    sessionStorage.setItem('lastSelectedProgram', pIndex.toString());
 
     document.querySelectorAll('.program-block.selected').forEach(el => el.classList.remove('selected'));
 
@@ -857,18 +867,18 @@ function selectProgram(cIndex, pIndex) {
         const blockRect = targetBlock.getBoundingClientRect();
         const containerRect = gridContainer.getBoundingClientRect();
 
-        if (blockRect.top < containerRect.top || blockRect.bottom > containerRect.bottom || blockRect.left < containerRect.left || blockRect.right > containerRect.right) {
-             targetBlock.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        if (blockRect.top < containerRect.top || blockRect.bottom > containerRect.bottom || 
+            blockRect.left < containerRect.left || blockRect.right > containerRect.right) {
+            const targetScrollLeft = targetBlock.offsetLeft - (containerRect.width * 0.35);
+            gridContainer.scrollTo({
+                left: Math.max(0, targetScrollLeft),
+                behavior: 'smooth'
+            });
         }
 
         const program = programsByChannel[cIndex][pIndex];
         const channel = guideData.channels[cIndex];
         displayProgramDetails(program, channel);
-    } else {
-         console.warn(`Target block not found for selection: [${cIndex}, ${pIndex}]`);
-          const program = programsByChannel[cIndex]?.[pIndex];
-          const channel = guideData.channels[cIndex];
-          if(program && channel) displayProgramDetails(program, channel);
     }
 }
 
@@ -917,28 +927,33 @@ function handleKeyPress(e) {
     if (e.ctrlKey && e.key.toLowerCase() === 'f') {
         return;
     }
+    
+    if (e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        window.location.href = 'ondemand.html';
+        return;
+    } else if (e.key.toLowerCase() === 'b' || e.key === 'Backspace') {
+        e.preventDefault();
+        window.history.back();
+        return;
+    } else if (e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        window.location.reload();
+        return;
+    }
 
     if (e.key === 'Shift' && !e.repeat) {
         e.preventDefault();
         const video = document.getElementById('mini-player-video');
-        const youtubeContainer = document.getElementById('youtube-player-iframe');
         
-        if (currentStreamInfo.channelId) {
-            const currentlyUnmuted = sessionStorage.getItem('playerUnmuted') === 'true';
-            const newMuteState = currentlyUnmuted;
-            
-            sessionStorage.setItem('playerUnmuted', newMuteState ? 'false' : 'true');
+        if (currentStreamInfo.source) {
+            const currentlyUnmuted = sessionStorage.getItem('miniplayerUnmuted') === 'true';
+            sessionStorage.setItem('miniplayerUnmuted', currentlyUnmuted ? 'false' : 'true');
             
             if (currentStreamInfo.type === 'hls' && video.src) {
                 video.muted = !video.muted;
-                console.log('HLS miniplayer toggled. Muted:', video.muted);
-            } 
-            else if (currentStreamInfo.type === 'youtube' || currentStreamInfo.type === 'twitch' || currentStreamInfo.type === 'iframe') {
-                const channel = guideData.channels.find(ch => ch.id === currentStreamInfo.channelId);
-                if (channel) {
-                    console.log('Reloading embedded stream with new mute state. Unmuted:', !newMuteState);
-                    loadStream(channel, false);
-                }
+            } else {
+                loadPersistentStream(currentStreamInfo);
             }
             return;
         }
