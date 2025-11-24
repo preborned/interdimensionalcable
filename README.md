@@ -10,7 +10,7 @@ iCable has too many features to pack into this readme, but some of the best are 
 iCable is essentially a fancy UI to watch your favorite content, with the easiest ability to customize and fine tune everything down to the letter. No data gets sent to any servers other than the servers you are streaming/accessing from. Again, it's a glorified media player.
 
 ## Usability
-The guide, basic channel creation, basic system setup/settings, and the player are stable. The side menu is still in progress (widgets are still buggy), as well as the full on-demand system and other upcoming features.
+The guide, basic channel creation, basic system setup/settings, the player, basic on-demand with Jellyfin, and the side menu with its widgets are all currently stable with some bugs here and there. More features to come.
 
 I make sure to triple check everything before doing full commits of fixes/updates. Releases are/will be thoroughly checked to make sure everything is as stable as possible.
 
