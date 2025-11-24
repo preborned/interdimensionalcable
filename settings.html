@@ -21,6 +21,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iCable Settings</title>
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
     <link rel="stylesheet" href="css/style.css">
     <style>
         body {
@@ -510,286 +511,335 @@
         </div>
     </div>
     
+    <div id="menu-overlay"></div>
+    <nav id="side-menu">
+        <div id="widget-slideshow-container">
+            <div id="hourly-forecast-widget" class="widget-slide">
+                <div class="widget-title">HOURLY FORECAST</div>
+                <div class="forecast-items"></div>
+            </div>
+            <div id="recommendation-widget" class="widget-slide">
+                <div class="widget-title">COMING UP NEXT</div>
+                <div class="rec-content"></div>
+            </div>
+            <div id="custom-message-widget" class="widget-slide">
+                <div class="widget-title">MESSAGE</div>
+                <div class="widget-content"></div>
+            </div>
+        </div>
+        <h2>Menu</h2>
+        <ul>
+            <li><a href="index.html" class="menu-button">Guide</a></li>
+            <li><a href="ondemand.html" class="menu-button">On-Demand</a></li>
+        </ul>
+    </nav>
+    
     <script src="scripts/config-manager.js"></script>
     <script src="scripts/menu-widgets.js"></script>
     <script>
-        let config = {};
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-            
-            if (tabName === 'appearance') loadAppearance();
-            if (tabName === 'channels') loadChannels();
-            if (tabName === 'data') updateStorageInfo();
-        }
-        
-        function loadSettings() {
-            config = window.iCableConfig.get();
-            
-            document.getElementById('guide-view-hours').value = config.guide?.viewHours || 2;
-            document.getElementById('guide-total-hours').value = config.guide?.totalHours || 12;
-            document.getElementById('guide-12hour').checked = config.guide?.use12Hour !== false;
-            document.getElementById('player-quality').value = config.player?.defaultQuality || 'auto';
-            document.getElementById('player-autoplay').checked = config.player?.autoplay !== false;
-            document.getElementById('player-muted').checked = config.player?.muted === true;
-            
-            document.getElementById('int-xmltv').value = config.integrations?.xmltvUrl || '';
-            document.getElementById('int-json').value = config.integrations?.jsonUrl || '';
-            document.getElementById('int-m3u').value = config.integrations?.m3uUrl || '';
-            document.getElementById('int-jellyfin-url').value = config.integrations?.jellyfin?.url || '';
-            document.getElementById('int-jellyfin-key').value = config.integrations?.jellyfin?.apiKey || '';
-            document.getElementById('int-jellyfin-enabled').checked = config.integrations?.jellyfin?.enabled === true;
-            document.getElementById('int-tmdb').value = config.appearance?.tmdbApiKey || '';
-            document.getElementById('int-weather').value = config.appearance?.weatherApiKey || '';
-            document.getElementById('int-weather-enabled').checked = config.appearance?.enableWeather === true;
-        }
-        
-        function saveGeneral() {
-            config.guide = config.guide || {};
-            config.player = config.player || {};
-            
-            config.guide.viewHours = parseInt(document.getElementById('guide-view-hours').value);
-            config.guide.totalHours = parseInt(document.getElementById('guide-total-hours').value);
-            config.guide.use12Hour = document.getElementById('guide-12hour').checked;
-            config.player.defaultQuality = document.getElementById('player-quality').value;
-            config.player.autoplay = document.getElementById('player-autoplay').checked;
-            config.player.muted = document.getElementById('player-muted').checked;
-            
-            window.iCableConfig.save(config);
-            alert('Settings saved successfully!');
-        }
-        
-        function saveIntegrations() {
-            config.integrations = config.integrations || {};
-            config.integrations.jellyfin = config.integrations.jellyfin || {};
-            
-            config.integrations.xmltvUrl = document.getElementById('int-xmltv').value;
-            config.integrations.jsonUrl = document.getElementById('int-json').value;
-            config.integrations.m3uUrl = document.getElementById('int-m3u').value;
-            config.integrations.jellyfin.url = document.getElementById('int-jellyfin-url').value;
-            config.integrations.jellyfin.apiKey = document.getElementById('int-jellyfin-key').value;
-            config.integrations.jellyfin.enabled = document.getElementById('int-jellyfin-enabled').checked;
-            config.appearance.tmdbApiKey = document.getElementById('int-tmdb').value;
-            config.appearance.weatherApiKey = document.getElementById('int-weather').value;
-            config.appearance.enableWeather = document.getElementById('int-weather-enabled').checked;
-            
-            window.iCableConfig.save(config);
-            alert('Integration settings saved!');
-        }
-        
-        function testIntegrations() {
-            alert('Testing connections... (This feature will verify your URLs and API keys)');
-        }
-        
-        function loadChannels() {
-            const customContainer = document.getElementById('custom-channel-list');
-            const customChannels = config.customChannels || [];
-            
-            if (customChannels.length === 0) {
-                customContainer.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No custom channels yet. Create your first one!</p>';
-            } else {
-                let html = '';
-                customChannels.forEach((ch, index) => {
-                    const logo = ch.logoId ? 'from storage' : (ch.logo || 'images/placeholder.png');
-                    html += `
-                        <div class="channel-item" style="margin-bottom: 0.8rem; padding: 0.8rem; background: var(--primary-bg-end); border-radius: 0.5rem; display: flex; align-items: center; gap: 1rem;">
-                            <img src="${ch.logo || 'https://placehold.co/60x60/4d648d/FFFFFF?text=' + ch.name}" style="width: 3rem; height: 3rem; object-fit: contain;">
-                            <div style="flex: 1;">
-                                <strong>${ch.fullName || ch.name}</strong><br>
-                                <small>Channel ${ch.number} | ${ch.stream?.type || 'Unknown'} stream</small>
-                            </div>
-                            <button onclick="deleteCustomChannel(${index})" style="background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer;">Delete</button>
-                        </div>
-                    `;
-                });
-                customContainer.innerHTML = html;
-            }
-            
-            const container = document.getElementById('channel-list-container');
-            const allChannels = [...(config.channels || []), ...customChannels];
-            
-            if (allChannels.length === 0) {
-                container.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No channels configured yet. Add integrations or create custom channels.</p>';
-                return;
-            }
-            
-            let html = '';
-            allChannels.forEach(ch => {
-                html += `<div class="channel-item" style="margin-bottom: 0.5rem;"><img src="${ch.logo || 'images/placeholder.png'}" style="width: 3rem; height: 3rem; object-fit: contain;"><div><strong>${ch.fullName || ch.name}</strong><br><small>Channel ${ch.number}</small></div></div>`;
-            });
-            container.innerHTML = html;
-        }
-        
-        function deleteCustomChannel(index) {
-            if (!confirm('Are you sure you want to delete this custom channel?')) return;
-            
-            config.customChannels.splice(index, 1);
-            window.iCableConfig.save(config);
-            loadChannels();
-        }
-        
-        function openChannelEditor() {
-            window.location.href = 'channel-creator.html';
-        }
-        
-        function createCustomChannel() {
-            window.location.href = 'channel-creator.html';
-        }
-        
-        function loadAppearance() {
-            const colors = config.appearance?.colors || window.iCableConfig.DEFAULT.appearance.colors;
-            
-            document.getElementById('color-primary-start').value = colors.primaryBgStart;
-            document.getElementById('color-primary-start-text').value = colors.primaryBgStart;
-            document.getElementById('color-primary-end').value = colors.primaryBgEnd;
-            document.getElementById('color-primary-end-text').value = colors.primaryBgEnd;
-            document.getElementById('color-secondary').value = colors.secondaryBg;
-            document.getElementById('color-secondary-text').value = colors.secondaryBg;
-            document.getElementById('color-tertiary').value = colors.tertiaryBg;
-            document.getElementById('color-tertiary-text').value = colors.tertiaryBg;
-            document.getElementById('color-accent').value = colors.accent;
-            document.getElementById('color-accent-text').value = colors.accent;
-            document.getElementById('color-text').value = colors.text;
-            document.getElementById('color-text-text').value = colors.text;
-            
-            syncColorInputs();
-            loadMessages();
-        }
-        
-        function syncColorInputs() {
-            ['primary-start', 'primary-end', 'secondary', 'tertiary', 'accent', 'text'].forEach(id => {
-                const colorInput = document.getElementById(`color-${id}`);
-                const textInput = document.getElementById(`color-${id}-text`);
-                
-                colorInput.addEventListener('input', () => {
-                    textInput.value = colorInput.value;
-                });
-                
-                textInput.addEventListener('input', () => {
-                    colorInput.value = textInput.value;
-                });
-            });
-        }
-        
-        function saveColors() {
-            config.appearance.colors = {
-                primaryBgStart: document.getElementById('color-primary-start').value,
-                primaryBgEnd: document.getElementById('color-primary-end').value,
-                secondaryBg: document.getElementById('color-secondary').value,
-                tertiaryBg: document.getElementById('color-tertiary').value,
-                accent: document.getElementById('color-accent').value,
-                text: document.getElementById('color-text').value,
-                liveBg: '#78909c',
-                pastBg: '#263238'
-            };
-            
-            window.iCableConfig.save(config);
-            window.iCableConfig.applyTheme(config.appearance.colors);
-            alert('Colors applied! Refresh the guide to see changes.');
-        }
-        
-        function resetColors() {
-            config.appearance.colors = window.iCableConfig.DEFAULT.appearance.colors;
-            window.iCableConfig.save(config);
-            window.iCableConfig.applyTheme(config.appearance.colors);
-            loadAppearance();
-            alert('Colors reset to default!');
-        }
-        
-        function loadMessages() {
-            const list = document.getElementById('message-list');
-            const messages = config.appearance?.customMessages || [];
-            
-            list.innerHTML = messages.map((msg, i) => `
-                <div class="message-item">
-                    <span>${msg}</span>
-                    <button onclick="removeMessage(${i})">×</button>
+       let config = {};
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    
+    if (tabName === 'appearance') loadAppearance();
+    if (tabName === 'channels') loadChannels();
+    if (tabName === 'data') updateStorageInfo();
+}
+
+function loadSettings() {
+    config = window.iCableConfig.get();
+    
+    document.getElementById('guide-view-hours').value = config.guide?.viewHours || 2;
+    document.getElementById('guide-total-hours').value = config.guide?.totalHours || 12;
+    document.getElementById('guide-12hour').checked = config.guide?.use12Hour !== false;
+    document.getElementById('player-quality').value = config.player?.defaultQuality || 'auto';
+    document.getElementById('player-autoplay').checked = config.player?.autoplay !== false;
+    document.getElementById('player-muted').checked = config.player?.muted === true;
+    
+    document.getElementById('int-xmltv').value = config.integrations?.xmltvUrl || '';
+    document.getElementById('int-json').value = config.integrations?.jsonUrl || '';
+    document.getElementById('int-m3u').value = config.integrations?.m3uUrl || '';
+    document.getElementById('int-jellyfin-url').value = config.integrations?.jellyfin?.url || '';
+    document.getElementById('int-jellyfin-key').value = config.integrations?.jellyfin?.apiKey || '';
+    document.getElementById('int-jellyfin-enabled').checked = config.integrations?.jellyfin?.enabled === true;
+    document.getElementById('int-tmdb').value = config.appearance?.tmdbApiKey || '';
+    document.getElementById('int-weather').value = config.appearance?.weatherApiKey || '';
+    document.getElementById('int-weather-enabled').checked = config.appearance?.enableWeather === true;
+}
+
+function saveGeneral() {
+    config.guide = config.guide || {};
+    config.player = config.player || {};
+    
+    config.guide.viewHours = parseInt(document.getElementById('guide-view-hours').value);
+    config.guide.totalHours = parseInt(document.getElementById('guide-total-hours').value);
+    config.guide.use12Hour = document.getElementById('guide-12hour').checked;
+    config.player.defaultQuality = document.getElementById('player-quality').value;
+    config.player.autoplay = document.getElementById('player-autoplay').checked;
+    config.player.muted = document.getElementById('player-muted').checked;
+    
+    window.iCableConfig.save(config);
+    alert('Settings saved successfully!');
+}
+
+function saveIntegrations() {
+    config.integrations = config.integrations || {};
+    config.integrations.jellyfin = config.integrations.jellyfin || {};
+    
+    config.integrations.xmltvUrl = document.getElementById('int-xmltv').value;
+    config.integrations.jsonUrl = document.getElementById('int-json').value;
+    config.integrations.m3uUrl = document.getElementById('int-m3u').value;
+    config.integrations.jellyfin.url = document.getElementById('int-jellyfin-url').value;
+    config.integrations.jellyfin.apiKey = document.getElementById('int-jellyfin-key').value;
+    config.integrations.jellyfin.enabled = document.getElementById('int-jellyfin-enabled').checked;
+    config.appearance.tmdbApiKey = document.getElementById('int-tmdb').value;
+    config.appearance.weatherApiKey = document.getElementById('int-weather').value;
+    config.appearance.enableWeather = document.getElementById('int-weather-enabled').checked;
+    
+    window.iCableConfig.save(config);
+    alert('Integration settings saved!');
+}
+
+function testIntegrations() {
+    alert('Testing connections... (This feature will verify your URLs and API keys)');
+}
+
+function loadChannels() {
+    const customContainer = document.getElementById('custom-channel-list');
+    const customChannels = config.customChannels || [];
+    
+    if (customChannels.length === 0) {
+        customContainer.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No custom channels yet. Create your first one!</p>';
+    } else {
+        let html = '';
+        customChannels.forEach((ch, index) => {
+            const logo = ch.logoId ? 'from storage' : (ch.logo || 'images/placeholder.png');
+            html += `
+                <div class="channel-item" style="margin-bottom: 0.8rem; padding: 0.8rem; background: var(--primary-bg-end); border-radius: 0.5rem; display: flex; align-items: center; gap: 1rem;">
+                    <img src="${ch.logo || 'https://placehold.co/60x60/4d648d/FFFFFF?text=' + ch.name}" style="width: 3rem; height: 3rem; object-fit: contain;">
+                    <div style="flex: 1;">
+                        <strong>${ch.fullName || ch.name}</strong><br>
+                        <small>Channel ${ch.number} | ${ch.stream?.type || 'Unknown'} stream</small>
+                    </div>
+                    <button onclick="deleteCustomChannel(${index})" style="background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer;">Delete</button>
                 </div>
-            `).join('');
-        }
+            `;
+        });
+        customContainer.innerHTML = html;
+    }
+    
+    const container = document.getElementById('channel-list-container');
+    const allChannels = [...(config.channels || []), ...customChannels];
+    
+    if (allChannels.length === 0) {
+        container.innerHTML = '<p style="text-align: center; opacity: 0.6; padding: 1rem;">No channels configured yet. Add integrations or create custom channels.</p>';
+        return;
+    }
+    
+    let html = '';
+    allChannels.forEach(ch => {
+        html += `<div class="channel-item" style="margin-bottom: 0.5rem;"><img src="${ch.logo || 'images/placeholder.png'}" style="width: 3rem; height: 3rem; object-fit: contain;"><div><strong>${ch.fullName || ch.name}</strong><br><small>Channel ${ch.number}</small></div></div>`;
+    });
+    container.innerHTML = html;
+}
+
+function deleteCustomChannel(index) {
+    if (!confirm('Are you sure you want to delete this custom channel?')) return;
+    
+    config.customChannels.splice(index, 1);
+    window.iCableConfig.save(config);
+    loadChannels();
+}
+
+function openChannelEditor() {
+    window.location.href = 'channel-creator.html';
+}
+
+function createCustomChannel() {
+    window.location.href = 'channel-creator.html';
+}
+
+function loadAppearance() {
+    const colors = config.appearance?.colors || window.iCableConfig.DEFAULT.appearance.colors;
+    
+    document.getElementById('color-primary-start').value = colors.primaryBgStart;
+    document.getElementById('color-primary-start-text').value = colors.primaryBgStart;
+    document.getElementById('color-primary-end').value = colors.primaryBgEnd;
+    document.getElementById('color-primary-end-text').value = colors.primaryBgEnd;
+    document.getElementById('color-secondary').value = colors.secondaryBg;
+    document.getElementById('color-secondary-text').value = colors.secondaryBg;
+    document.getElementById('color-tertiary').value = colors.tertiaryBg;
+    document.getElementById('color-tertiary-text').value = colors.tertiaryBg;
+    document.getElementById('color-accent').value = colors.accent;
+    document.getElementById('color-accent-text').value = colors.accent;
+    document.getElementById('color-text').value = colors.text;
+    document.getElementById('color-text-text').value = colors.text;
+    
+    syncColorInputs();
+    loadMessages();
+}
+
+function syncColorInputs() {
+    ['primary-start', 'primary-end', 'secondary', 'tertiary', 'accent', 'text'].forEach(id => {
+        const colorInput = document.getElementById(`color-${id}`);
+        const textInput = document.getElementById(`color-${id}-text`);
         
-        function addMessage() {
-            const input = document.getElementById('new-message');
-            const msg = input.value.trim();
-            if (!msg) return;
-            
-            config.appearance.customMessages = config.appearance.customMessages || [];
-            config.appearance.customMessages.push(msg);
-            window.iCableConfig.save(config);
-            input.value = '';
-            loadMessages();
-        }
+        colorInput.addEventListener('input', () => {
+            textInput.value = colorInput.value;
+        });
         
-        function removeMessage(index) {
-            config.appearance.customMessages.splice(index, 1);
-            window.iCableConfig.save(config);
-            loadMessages();
-        }
-        
-        async function uploadLogo() {
-            const file = document.getElementById('logo-upload').files[0];
-            if (!file) return;
-            
-            try {
-                const logoId = await window.iCableConfig.saveImage(file);
-                config.appearance.systemLogoId = logoId;
-                window.iCableConfig.save(config);
-                alert('Logo uploaded successfully!');
-            } catch (error) {
-                alert('Failed to upload logo: ' + error.message);
-            }
-        }
-        
-        function removeLogo() {
-            if (config.appearance.systemLogoId) {
-                window.iCableConfig.deleteImage(config.appearance.systemLogoId);
-                config.appearance.systemLogoId = null;
-                window.iCableConfig.save(config);
-                alert('Logo removed!');
-            }
-        }
-        
-        function exportData() {
-            window.iCableConfig.export();
-        }
-        
-        async function importData() {
-            const file = document.getElementById('import-file').files[0];
-            if (!file) return;
-            
-            try {
-                const imported = await window.iCableConfig.import(file);
-                config = imported;
-                loadSettings();
-                alert('Data imported successfully! Refresh the page to see changes.');
-            } catch (error) {
-                alert('Failed to import data: ' + error.message);
-            }
-        }
-        
-        function resetAll() {
-            window.iCableConfig.reset();
-        }
-        
-        function updateStorageInfo() {
-            if (navigator.storage && navigator.storage.estimate) {
-                navigator.storage.estimate().then(estimate => {
-                    const used = (estimate.usage / 1024 / 1024).toFixed(2);
-                    const quota = (estimate.quota / 1024 / 1024).toFixed(2);
-                    document.getElementById('storage-info').textContent = `Using ${used} MB of ${quota} MB available`;
-                });
-            } else {
-                document.getElementById('storage-info').textContent = 'Storage info not available';
-            }
-        }
-        
-         window.addEventListener('DOMContentLoaded', () => {
+        textInput.addEventListener('input', () => {
+            colorInput.value = textInput.value;
+        });
+    });
+}
+
+function saveColors() {
+    config.appearance.colors = {
+        primaryBgStart: document.getElementById('color-primary-start').value,
+        primaryBgEnd: document.getElementById('color-primary-end').value,
+        secondaryBg: document.getElementById('color-secondary').value,
+        tertiaryBg: document.getElementById('color-tertiary').value,
+        accent: document.getElementById('color-accent').value,
+        text: document.getElementById('color-text').value,
+        liveBg: '#78909c',
+        pastBg: '#263238'
+    };
+    
+    window.iCableConfig.save(config);
+    window.iCableConfig.applyTheme(config.appearance.colors);
+    alert('Colors applied! Refresh the guide to see changes.');
+}
+
+function resetColors() {
+    config.appearance.colors = window.iCableConfig.DEFAULT.appearance.colors;
+    window.iCableConfig.save(config);
+    window.iCableConfig.applyTheme(config.appearance.colors);
+    loadAppearance();
+    alert('Colors reset to default!');
+}
+
+function loadMessages() {
+    const list = document.getElementById('message-list');
+    const messages = config.appearance?.customMessages || [];
+    
+    list.innerHTML = messages.map((msg, i) => `
+        <div class="message-item">
+            <span>${msg}</span>
+            <button onclick="removeMessage(${i})">×</button>
+        </div>
+    `).join('');
+}
+
+function addMessage() {
+    const input = document.getElementById('new-message');
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    config.appearance.customMessages = config.appearance.customMessages || [];
+    config.appearance.customMessages.push(msg);
+    window.iCableConfig.save(config);
+    input.value = '';
+    loadMessages();
+}
+
+function removeMessage(index) {
+    config.appearance.customMessages.splice(index, 1);
+    window.iCableConfig.save(config);
+    loadMessages();
+}
+
+async function uploadLogo() {
+    const file = document.getElementById('logo-upload').files[0];
+    if (!file) return;
+    
+    try {
+        const logoId = await window.iCableConfig.saveImage(file);
+        config.appearance.systemLogoId = logoId;
+        window.iCableConfig.save(config);
+        alert('Logo uploaded successfully!');
+    } catch (error) {
+        alert('Failed to upload logo: ' + error.message);
+    }
+}
+
+function removeLogo() {
+    if (config.appearance.systemLogoId) {
+        window.iCableConfig.deleteImage(config.appearance.systemLogoId);
+        config.appearance.systemLogoId = null;
+        window.iCableConfig.save(config);
+        alert('Logo removed!');
+    }
+}
+
+function exportData() {
+    window.iCableConfig.export();
+}
+
+async function importData() {
+    const file = document.getElementById('import-file').files[0];
+    if (!file) return;
+    
+    try {
+        const imported = await window.iCableConfig.import(file);
+        config = imported;
+        loadSettings();
+        alert('Data imported successfully! Refresh the page to see changes.');
+    } catch (error) {
+        alert('Failed to import data: ' + error.message);
+    }
+}
+
+function resetAll() {
+    window.iCableConfig.reset();
+}
+
+function updateStorageInfo() {
+    if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(estimate => {
+            const used = (estimate.usage / 1024 / 1024).toFixed(2);
+            const quota = (estimate.quota / 1024 / 1024).toFixed(2);
+            document.getElementById('storage-info').textContent = `Using ${used} MB of ${quota} MB available`;
+        });
+    } else {
+        document.getElementById('storage-info').textContent = 'Storage info not available';
+    }
+}
+
+function toggleMenu() {
+    const settingsContainer = document.getElementById('settings-container');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const sideMenu = document.getElementById('side-menu');
+    
+    if (!sideMenu) {
+        console.error('Side menu not found');
+        return;
+    }
+    
+    const isOpening = !sideMenu.classList.contains('visible');
+    
+    if (settingsContainer) settingsContainer.classList.toggle('blurred');
+    if (menuOverlay) menuOverlay.classList.toggle('visible');
+    sideMenu.classList.toggle('visible');
+    
+    if (isOpening) {
+        setTimeout(() => {
+            const firstMenuItem = sideMenu.querySelector('.menu-button');
+            if (firstMenuItem) firstMenuItem.focus();
+        }, 100);
+    }
+}
+
+window.addEventListener('load', () => {
+    loadSettings();
+    
+    setTimeout(() => {
         const cfg = window.iCableConfig.get();
-        
         if (cfg.appearance?.enableWeather) {
             navigator.geolocation.getCurrentPosition(pos => {
                 window.MenuWidgets.init(cfg, pos.coords);
@@ -799,75 +849,56 @@
         } else {
             window.MenuWidgets.init(cfg);
         }
-    });
-
-    document.addEventListener('keydown', (e) => {
-        const menu = document.getElementById('side-menu');
-        
-        if (menu && menu.classList.contains('visible')) {
-            if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
-                e.preventDefault();
-                toggleMenu();
-                return;
-            }
-            
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
-                const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
-                
-                if (e.key === 'ArrowUp') {
-                    const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
-                    menuButtons[prevIndex].focus();
-                } else {
-                    const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
-                    menuButtons[nextIndex].focus();
-                }
-                return;
-            }
-            
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (document.activeElement.classList.contains('menu-button')) {
-                    document.activeElement.click();
-                }
-                return;
-            }
-            return;
-        }
-        
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-
-        if (e.key.toLowerCase() === 'm') {
-            e.preventDefault();
-            toggleMenu();
-        }
-    });
-
-    function toggleMenu() {
-        const appContainer = document.getElementById('settings-container');
-        const menuOverlay = document.getElementById('menu-overlay');
-        const sideMenu = document.getElementById('side-menu');
-        const isOpening = !sideMenu.classList.contains('visible');
-        
-        if (appContainer) appContainer.classList.toggle('blurred');
-        if (menuOverlay) menuOverlay.classList.toggle('visible');
-        if (sideMenu) sideMenu.classList.toggle('visible');
-        
-        if (isOpening) {
-            setTimeout(() => {
-                const firstMenuItem = sideMenu.querySelector('.menu-button');
-                if (firstMenuItem) firstMenuItem.focus();
-            }, 100);
-        }
-    }
-
+    }, 100);
+    
     const menuOverlay = document.getElementById('menu-overlay');
     if (menuOverlay) {
         menuOverlay.addEventListener('click', toggleMenu);
     }
+});
 
-    window.addEventListener('load', loadSettings);
+document.addEventListener('keydown', (e) => {
+    const menu = document.getElementById('side-menu');
+    
+    if (menu && menu.classList.contains('visible')) {
+        if (e.key.toLowerCase() === 'm' || e.key === 'Escape') {
+            e.preventDefault();
+            toggleMenu();
+            return;
+        }
+        
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const menuButtons = Array.from(menu.querySelectorAll('.menu-button'));
+            const currentIndex = menuButtons.findIndex(btn => btn === document.activeElement);
+            
+            if (e.key === 'ArrowUp') {
+                const prevIndex = currentIndex <= 0 ? menuButtons.length - 1 : currentIndex - 1;
+                menuButtons[prevIndex].focus();
+            } else {
+                const nextIndex = currentIndex >= menuButtons.length - 1 ? 0 : currentIndex + 1;
+                menuButtons[nextIndex].focus();
+            }
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (document.activeElement.classList.contains('menu-button')) {
+                document.activeElement.click();
+            }
+            return;
+        }
+        return;
+    }
+    
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleMenu();
+    }
+});
     </script>
 </body>
 </html>
