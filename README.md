@@ -5,19 +5,26 @@
 iCable (or Interdimensional Cable), brings you a simple and convenient solution to watch your own hosted media or external sources in an all-in-one, cable-like user interface through your web browser.
 
 ## Description
-iCable has too many features to pack into this readme, but some of the best are the full personalization/customization ability, custom channels, support for all kinds of streams and content (including HLS, YouTube, and Twitch), complete privacy by storing literally ALL data within your browser storage. Plus, it's extremely easy to use and it's free AND open source.
+**iCable is still in development and some features may not work as intended.** 
 
-iCable is essentially a fancy UI to watch your favorite content, with the easiest ability to customize and fine tune everything down to the letter. No data gets sent to any servers other than the servers you are streaming/accessing from. Again, it's a glorified media player.
+The Guide, On-Demand, and the Player are all functional "prototypes". iCable can play HLS/M3U, YouTube, Twitch, and Jellyfin media. On-Demand also keeps track of your previously watched content and can pickup where you left off. All features have been tested to work on different devices.
 
-## Usability
-The guide, basic channel creation, basic system setup/settings, the player, basic on-demand with Jellyfin, and the side menu with its widgets are all currently stable with some bugs here and there. More features to come.
+iCable is designed to provide a full DIY cable TV experience, allowing you to create your own channels and watch your own media through a traditional cable-like interface. No need for "premium packages" or annual contracts when you can simply design each channel to your specific liking.
 
-I make sure to triple check everything before doing full commits of fixes/updates. Releases are/will be thoroughly checked to make sure everything is as stable as possible.
+## Instructions
+"M" opens the side menu, the side menu is available everywhere as a main navigation hub.
+
+"G" and "O" automatically navigate to Guide and On-Demand respectively.
+
+All player controls are listed at the bottom of the screen depending on the type of content you are viewing, whether "live TV" or On-Demand.
+
+For first time use, iCable will automatically direct you to the setup page to add API's and any guide data as well as basic customization. Upon completion you will be dropped into an empty guide. Navigating to Settings via the side menu and selecting Channels will provide you with the option to open the "Channel Creator", and from there you can create a channel through the easy-to-use UI. iCable will handle the rest. Enjoy!
 
 ## Attributes
-TMDb, OpenWeather, 
+TMDb, OpenWeather, and Jellyfin API functions are available.
 
 ## Disclaimer
+This project is "vibe-coded" from multiple AI agents including Claude and Gemini. Unfortunately, I do not know how to code beyond HTML. As such, iCable is licensed under GPLv3 and should remain free and completely open-source for others to build with.
 
 ## License
 This software is licensed under the GNU General Public License v3. 
