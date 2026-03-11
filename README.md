@@ -1,8 +1,7 @@
 <p align="center">
   <img src="images/icable.png" alt="iCable" width="25%"/>
 </p>
-
-iCable (or Interdimensional Cable), brings you a simple and convenient solution to watch your own hosted media or external sources in an all-in-one, cable-like user interface through your web browser.
+Interdimensional Cable brings you a simple and convenient solution to watch your own hosted media or external sources in an all-in-one, cable-like user interface through your web browser. iCable is currently in heavy development with future builds to be released in the near future. It is recommended *not* to enter any sensitive info such as private API keys as this is only a visual demo.
 
 ## Description
 **iCable is still in development and some features may not work as intended.** 
